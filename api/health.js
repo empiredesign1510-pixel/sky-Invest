@@ -3,7 +3,7 @@ import {json} from './_lib/http.js';
 export default async function handler(req,res){
   json(res,200,{
     ok:true,
-    version:'7.2.0',
+    version:'7.3.0',
     deploymentMode:'vercel-stable',
     crypto:{
       provider:'CoinGecko + Binance public market data',
@@ -23,7 +23,7 @@ export default async function handler(req,res){
       'professional-ui','market-regime','opportunity-scanner','order-flow',
       'multi-timeframe','timing-quality','historical-validation',
       'news-event-risk','meme-coins','candlestick','trade-levels',
-      'mobile-scroll-fix','vercel-stable-mode'
+      'mobile-scroll-fix','vercel-stable-mode','validated-buy-alert','strict-10-gate-validation'
     ],
     time:new Date().toISOString()
   },'public, s-maxage=10, stale-while-revalidate=20');
