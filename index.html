@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Investment AI OS v7.2</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header">
+    <div class="brand-lockup">
+      <div class="brand-mark">IA</div>
+      <div><h1>Investment AI</h1><p>Decision Intelligence</p></div>
+    </div>
+    <div class="data-chip"><i></i><span id="liveText">Connecting…</span></div>
+  </header>
+
+  <nav class="bottom-nav" aria-label="Navigasi utama">
+    <button class="active" data-tab="market"><span class="nav-symbol">⌁</span><span>Market</span></button>
+    <button data-tab="scanner"><span class="nav-symbol">◇</span><span>Scanner</span></button>
+    <button data-tab="watchlist"><span class="nav-symbol">★</span><span>Watchlist</span></button>
+  </nav>
+
+  <main class="main-content">
+    <section id="market" class="screen">
+      <div class="market-hero card" id="regimeCard">
+        <div><span class="eyebrow">MARKET REGIME</span><h2 id="regimeLabel">Analysing…</h2><p id="regimeReason">Membaca breadth dan struktur BTC.</p></div>
+        <div class="regime-score"><strong id="regimeScore">—</strong><span>/100</span></div>
+      </div>
+
+      <div class="overview-grid">
+        <div class="mini-card"><span>Breadth 24H</span><b id="breadth24">—</b><small>aset yang hijau</small></div>
+        <div class="mini-card"><span>Top Signal</span><b id="topSignal">—</b><small id="topSignalName">loading</small></div>
+      </div>
+
+      <div class="search-wrap">
+        <div class="search-box"><span>⌕</span><input id="globalSearch" inputmode="search" placeholder="Cari BTC, NVDA, XAU/USD…"><button id="searchBtn">Cari</button></div>
+        <div id="searchResults" class="search-results hidden"></div>
+      </div>
+
+      <div class="section-head"><div><span class="eyebrow">MARKET</span><h3>Daftar Aset</h3></div><span class="freshness" id="lastUpdate">—</span></div>
+      <div class="filter-row">
+        <button class="filter active" data-filter="all">Semua</button><button class="filter" data-filter="crypto">Crypto</button><button class="filter meme-filter" data-filter="meme">Meme</button><button class="filter" data-filter="stock">Saham</button><button class="filter" data-filter="gold">Gold</button>
+      </div>
+      <div id="assetList" class="asset-list"><div class="skeleton-block"></div><div class="skeleton-block"></div><div class="skeleton-block"></div></div>
+    </section>
+
+    <section id="scanner" class="screen hidden">
+      <div class="scanner-hero card">
+        <span class="eyebrow">AI OPPORTUNITY SCANNER</span><h2>Cari peluang terbaik sekarang</h2><p>Deep scan memakai multi-timeframe. Hasil final tetap harus dibuka untuk order flow, event risk, dan historical validation.</p>
+        <button class="primary-btn" id="scanBtn">Mulai Deep Scan</button>
+        <div class="scan-progress hidden" id="scanProgress"><div><i id="scanBar"></i></div><span id="scanText">Preparing…</span></div>
+      </div>
+      <div class="section-head"><div><span class="eyebrow">RANKING</span><h3>Opportunity Board</h3></div><span class="freshness">MTF ranked</span></div>
+      <div id="scannerResults" class="scanner-list"><div class="empty-state"><b>Belum ada deep scan.</b><span>Tekan tombol di atas untuk menganalisis kandidat teratas.</span></div></div>
+    </section>
+
+    <section id="watchlist" class="screen hidden">
+      <div class="section-head page-head"><div><span class="eyebrow">WATCHLIST</span><h2>Aset yang dipantau</h2></div><button class="ghost-btn" id="clearWatch">Bersihkan</button></div>
+      <div id="watchList" class="asset-list"><div class="empty-state"><b>Watchlist kosong.</b><span>Tambahkan aset dari halaman Market.</span></div></div>
+    </section>
+  </main>
+</div>
+
+<div id="detailSheet" class="sheet hidden">
+  <div class="sheet-backdrop" data-close-sheet></div>
+  <section class="sheet-panel" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div><button class="sheet-close" data-close-sheet>×</button>
+    <div id="detailContent"></div>
+  </section>
+</div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
