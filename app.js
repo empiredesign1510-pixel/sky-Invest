@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const state={filter:'all',crypto:[],macro:[],regime:null,selected:null,analysis:null,timeframe:'4h',liveCrypto:new Map(),binanceWs:null,macroPoll:null,macroSymbols:[],lastTick:null,health:null,mtfCache:new Map(),scanResults:[]};
+const state={filter:'all',crypto:[],macro:[],regime:null,selected:null,analysis:null,timeframe:'4h',liveCrypto:new Map(),binanceWs:null,macroPoll:null,macroSymbols:[],lastTick:null,health:null,mtfCache:new Map(),scanResults:[],validatedMap:new Map(),alertMonitor:null,alertBusy:false};
 const store={get(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const esc=(s='')=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const fmt=(v,c='USD')=>{const n=Number(v);if(!Number.isFinite(n))return'—';return new Intl.NumberFormat('id-ID',{style:'currency',currency:c,maximumFractionDigits:Math.abs(n)<10?6:2}).format(n)};
@@ -7,13 +7,37 @@ const pct=v=>{const n=Number(v);return Number.isFinite(n)?`${n>=0?'+':''}${n.toF
 const short=s=>s?.label==='WAIT & SEE'?'WAIT':(s?.label||'WAIT');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(url){const r=await fetch(url),d=await r.json().catch(()=>({}));if(!r.ok||d.ok===false)throw new Error(d.error||`HTTP ${r.status}`);return d}
+function alertPrefs(){return store.get('inv_validated_alert_v73',{enabled:false,intervalMinutes:5})}
+function alertHistory(){return store.get('inv_validated_history_v73',{})}
+function showToast(title,message){const stack=$('#toastStack');if(!stack)return;const el=document.createElement('div');el.className='toast';el.innerHTML=`<b>${esc(title)}</b><span>${esc(message)}</span>`;stack.prepend(el);setTimeout(()=>el.remove(),8500)}
+function updateAlertUI(lastText=''){
+  const pref=alertPrefs(),card=$('#validatedMonitor'),title=$('#alertStatusTitle'),text=$('#alertStatusText'),btn=$('#alertToggle');if(!card)return;
+  card.classList.toggle('active',pref.enabled);title.textContent=pref.enabled?'Alert Aktif':'Alert OFF';btn.textContent=pref.enabled?'Matikan Alert':'Aktifkan Alert';
+  text.textContent=pref.enabled?(lastText||`Memantau kandidat setiap ${pref.intervalMinutes} menit. Alert hanya untuk Validation Score 100/100.`):'Notifikasi hanya muncul saat seluruh 10 gate validasi BUY lolos.';
+}
+async function requestAlertPermission(){
+  let browser='in-app only';
+  if('Notification' in window){try{let p=Notification.permission;if(p==='default')p=await Notification.requestPermission();if(p==='granted')browser='browser + in-app'}catch{}}
+  store.set('inv_validated_alert_v73',{...alertPrefs(),enabled:true});updateAlertUI(`Aktif • ${browser} • strict 100/100`);startValidatedMonitor(true);showToast('Validated Buy Alert aktif','Website akan memberi tahu ketika semua gate BUY lolos 100/100.');
+}
+function stopValidatedMonitor(){if(state.alertMonitor)clearInterval(state.alertMonitor);state.alertMonitor=null;store.set('inv_validated_alert_v73',{...alertPrefs(),enabled:false});updateAlertUI()}
+async function browserNotify(title,body){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  try{if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.ready;await reg.showNotification(title,{body,tag:'validated-buy',renotify:true,data:{url:location.origin}})}else new Notification(title,{body})}catch{}
+}
+function maybeNotifyValidatedBuy(a,validation,details){
+  if(!validation?.valid)return;const key=`${a.type}:${a.symbol}`,hist=alertHistory(),last=Number(hist[key]||0);if(Date.now()-last<30*60*1000)return;
+  hist[key]=Date.now();store.set('inv_validated_history_v73',hist);const price=Number(details?.d?.quote?.price??a.price),msg=`${a.symbol} lolos 10/10 gate • Validation 100/100${Number.isFinite(price)?` • ${fmt(price,details?.d?.currency||a.currency||'USD')}`:''}`;
+  showToast(`VALIDATED BUY • ${a.symbol}`,msg);browserNotify(`VALIDATED BUY • ${a.symbol}`,msg);const box=$('#validatedLatest');if(box){box.classList.remove('hidden');box.innerHTML=`<div><strong>VALIDATED BUY • ${esc(a.symbol)}</strong><span>${esc(validation.reason)}</span></div><span class="validated-score">100/100</span>`}
+}
+
 function tab(id){$$('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));$$('.screen').forEach(x=>x.classList.toggle('hidden',x.id!==id));if(id==='watchlist')renderWatch()}
 $$('.bottom-nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
 $$('.filter').forEach(b=>b.onclick=()=>{$$('.filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.filter=b.dataset.filter;renderMarket()});
 function watches(){return store.get('inv_watch_v7',store.get('inv_watch_v5',[]))}function isWatched(a){return watches().some(x=>x.type===a.type&&x.id===a.id)}function addWatch(a){const w=watches();if(!w.some(x=>x.type===a.type&&x.id===a.id))w.unshift({...a,added:Date.now()});store.set('inv_watch_v7',w.slice(0,100));renderWatch()}function removeWatch(a){store.set('inv_watch_v7',watches().filter(x=>!(x.id===a.id&&x.type===a.type)));renderWatch()}
 function cryptoLive(a){const t=state.liveCrypto.get(`${a.symbol}USDT`);if(!t)return a;return{...a,price:t.price,change24h:t.open?((t.price/t.open)-1)*100:a.change24h,liveAt:t.time}}
 function signalSpan(s){return`<span class="signal ${esc(s?.tone||'wait')}">${esc(short(s))}</span>`}
-function assetRow(a){const c=a.type==='crypto'?cryptoLive(a):a,s=c.signal||{label:'WAIT & SEE',tone:'wait'},chg=Number(c.change24h??c.percentChange),img=a.type==='crypto'&&a.image?`<img class="coin-img" src="${esc(a.image)}" alt="">`:`<div class="asset-icon">${a.type==='gold'?'AU':'ST'}</div>`;return`<article class="asset-row" data-open-type="${esc(a.type)}" data-open-id="${esc(a.id)}"><div class="asset-main">${img}<div><div class="asset-symbol">${esc(a.symbol)}${a.isMeme?'<span class="meme-badge">MEME</span>':''}</div><div class="asset-name">${esc(a.name||a.symbol)}</div></div></div><div class="asset-price"><strong>${fmt(c.price,c.currency||'USD')}</strong><span class="change ${chg>=0?'positive':'negative'}">${pct(chg)}</span></div>${signalSpan(s)}</article>`}
+function assetRow(a){const c=a.type==='crypto'?cryptoLive(a):a,s=c.signal||{label:'WAIT & SEE',tone:'wait'},chg=Number(c.change24h??c.percentChange),img=a.type==='crypto'&&a.image?`<img class="coin-img" src="${esc(a.image)}" alt="">`:`<div class="asset-icon">${a.type==='gold'?'AU':'ST'}</div>`;return`<article class="asset-row" data-open-type="${esc(a.type)}" data-open-id="${esc(a.id)}"><div class="asset-main">${img}<div><div class="asset-symbol">${esc(a.symbol)}${a.isMeme?'<span class="meme-badge">MEME</span>':''}${state.validatedMap.get(`${a.type}:${a.id}`)?.valid?'<span class="validated-badge">VALID BUY</span>':''}</div><div class="asset-name">${esc(a.name||a.symbol)}</div></div></div><div class="asset-price"><strong>${fmt(c.price,c.currency||'USD')}</strong><span class="change ${chg>=0?'positive':'negative'}">${pct(chg)}</span></div>${signalSpan(s)}</article>`}
 function renderMarket(){const normal=state.crypto.filter(x=>!x.isMeme),memes=state.crypto.filter(x=>x.isMeme);let rows=[];if(state.filter==='all'){rows=[...state.macro.filter(x=>x.type==='gold'),...state.macro.filter(x=>x.type==='stock').slice(0,6),...normal.slice(0,18),...memes.slice(0,10)]}else if(state.filter==='crypto')rows=normal;else if(state.filter==='meme')rows=memes;else rows=state.macro.filter(x=>x.type===state.filter);$('#assetList').innerHTML=rows.length?rows.map(assetRow).join(''):`<div class="empty-state"><b>Tidak ada data.</b><span>Coba kategori lain.</span></div>`;$$('#assetList [data-open-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.openType,x.dataset.openId));renderTopSignal()}
 function renderWatch(){const list=watches().map(w=>w.type==='crypto'?state.crypto.find(x=>x.id===w.id):state.macro.find(x=>x.id===w.id)).filter(Boolean);$('#watchList').innerHTML=list.length?list.map(assetRow).join(''):`<div class="empty-state"><b>Watchlist kosong.</b><span>Tambahkan aset dari Market.</span></div>`;$$('#watchList [data-open-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.openType,x.dataset.openId))}
 function renderTopSignal(){const all=[...state.macro,...state.crypto].filter(x=>x.signal);const rank={BUY:4,HOLD:3,'WAIT & SEE':2,SELL:1};all.sort((a,b)=>(rank[b.signal.label]||0)-(rank[a.signal.label]||0)+(Number(b.signal.confidence||0)-Number(a.signal.confidence||0))/100);const a=all[0];$('#topSignal').textContent=a?short(a.signal):'—';$('#topSignalName').textContent=a?`${a.symbol} • ${a.signal.confidence||'—'}%`:'loading'}
@@ -151,9 +175,53 @@ function mtfCell(f){if(!f?.ok)return'<div class="mtf-mini na">N/A</div>';return`
 function intel(title,label,tone='wait',small=''){return`<div class="intel-card ${esc(tone)}"><span>${esc(title)}</span><b>${esc(label||'—')}</b>${small?`<small>${esc(small)}</small>`:''}</div>`}
 function timingQuality(a,d,order){const p=Number(d.quote?.price??d.technical?.latest),L=d.levels||{},r=Number(d.technical?.rsi14),atr=Number(d.technical?.atr14)||Math.max(p*.01,.0000001);let score=55,notes=[];const buyish=['BUY','HOLD'].includes(d.signal?.label);if(buyish){if(p>=L.entryLow&&p<=L.entryHigh){score+=22;notes.push('di area entry')}else if(p>L.entryHigh+atr*.8){score-=23;notes.push('terlalu jauh dari entry')}else score+=6;if(r>=50&&r<=68)score+=10;else if(r>76)score-=18;if(Number.isFinite(L.resistance)&&(L.resistance-p)/atr<.55)score-=13;if(order?.score>=64)score+=7;else if(order?.score<=36)score-=9}else if(d.signal?.label==='SELL'){score+=8;if(order?.score<=36)score+=8}else score-=5;score=Math.max(20,Math.min(92,Math.round(score)));let label='WAIT FOR SETUP',tone='wait';if(d.signal?.label==='SELL'&&score>=65){label='REDUCE / EXIT';tone='sell'}else if(buyish&&score>=82){label='EXCELLENT ENTRY';tone='buy'}else if(buyish&&score>=70){label='GOOD ENTRY';tone='buy'}else if(buyish&&score>=55){label='WAIT PULLBACK';tone='hold'}else if(buyish){label='TOO LATE / CHASING';tone='sell'}return{label,tone,score,reason:notes.join(' • ')}}
 function finalDecision(a,d,mtf,order,back,ctx){let v={BUY:2,HOLD:1,'WAIT & SEE':0,SELL:-2}[mtf?.summary?.label||d.signal.label]||0,conf=Number(mtf?.summary?.confidence||d.signal.confidence||60),reasons=[];if(order){if(order.score>=64){v+=.35;conf+=3;reasons.push('buyer order flow dominan')}else if(order.score<=36){v-=.4;conf-=3;reasons.push('seller order flow dominan')}}if(state.regime){if(state.regime.score>=68){v+=.18;reasons.push('market regime mendukung')}else if(state.regime.score<40){v-=.35;conf-=4;reasons.push('market regime defensif')}}if(back?.sampleSize>=8){if(back.hitRate>=60&&back.expectancyPct>0){v+=.22;conf+=2;reasons.push('historical validation positif')}else if(back.hitRate<48||back.expectancyPct<0){v-=.28;conf-=4;reasons.push('historical validation lemah')}}if(ctx?.eventRisk?.level==='HIGH'){v-=.65;conf-=7;reasons.push('event/news risk tinggi')}if(a.isMeme&&(a.riskPenalty||0)>=18){v-=.28;conf-=4;reasons.push('meme risk tinggi')}let label='WAIT & SEE',tone='wait';if(v>=1.45){label='BUY';tone='buy'}else if(v>=.55){label='HOLD';tone='hold'}else if(v<=-1.2){label='SELL';tone='sell'}conf=Math.max(52,Math.min(90,Math.round(conf)));if(label==='WAIT & SEE')conf=Math.min(conf,72);return{label,tone,confidence:conf,reason:reasons.slice(0,3).join(' • ')||mtf?.summary?.reason||d.signal.reason}}
-function renderDetail(a,d,mtf,order,back,ctx){const cur=a.type==='crypto'?cryptoLive(a):a,final=finalDecision(a,d,mtf,order,back,ctx),timing=timingQuality(a,d,order),I=d.indicators||{},L=d.levels||{},frames=Object.fromEntries((mtf?.frames||[]).map(x=>[x.timeframe,x])),watched=isWatched(a),chg=Number(cur.change24h??cur.percentChange),C=d.currency||cur.currency||'USD';$('#detailContent').innerHTML=`
+function validation100(a,d,mtf,order,back,ctx,final,timing){
+  const frames=mtf?.frames||[],counts=frames.reduce((o,f)=>{if(f?.ok)o[f.signal?.label]=(o[f.signal?.label]||0)+1;return o},{}),I=d?.indicators||{},r=Number(d?.technical?.rsi14),trend=Number(d?.technical?.trendScore||I.trend?.score),event=ctx?.eventRisk?.level||'UNKNOWN';
+  const gates=[
+    {name:'Final Decision BUY',pass:final?.label==='BUY'},
+    {name:'Multi-TF BUY',pass:mtf?.summary?.label==='BUY'},
+    {name:'≥3 timeframe BUY, 0 SELL',pass:(counts.BUY||0)>=3&&(counts.SELL||0)===0},
+    {name:'MTF confidence ≥82%',pass:Number(mtf?.summary?.confidence)>=82},
+    {name:'Timing ≥78 / Good+',pass:Number(timing?.score)>=78&&['GOOD ENTRY','EXCELLENT ENTRY'].includes(timing?.label)},
+    {name:'Trend + RSI sehat',pass:d?.signal?.label==='BUY'&&trend>=75&&r>=48&&r<=70},
+    {name:'Historical validation positif',pass:Number(back?.sampleSize)>=10&&Number(back?.hitRate)>=58&&Number(back?.expectancyPct)>0},
+    {name:'Market regime mendukung',pass:Number(state.regime?.score)>=62&&state.regime?.tone!=='sell'},
+    {name:'Event risk terkontrol',pass:['LOW','MEDIUM'].includes(event)},
+    {name:'Asset-specific confirmation',pass:(()=>{if(a.type==='crypto')return Number(order?.score)>=62&&(!a.isMeme||Number(a.riskPenalty||99)<=14);if(a.type==='stock')return Number(ctx?.fundamental?.score)>=62;if(a.type==='gold')return I.momentum?.tone==='buy'&&I.position?.label!=='Dekat Resistance'&&event==='LOW';return false})()}
+  ];
+  const passed=gates.filter(x=>x.pass).length,score=passed*10,valid=score===100;
+  return{score,passed,total:10,valid,label:valid?'VALIDATED BUY':score>=80?'NEAR VALIDATION':'NOT VALIDATED',reason:valid?'Seluruh 10 gate BUY lolos. Ini validasi model, bukan jaminan profit.':`${passed}/10 gate lolos; belum memenuhi strict validation.`,gates};
+}
+async function deepValidateCandidate(a,mtfInput=null){
+  const tf='4h',baseUrl=a.type==='crypto'?`/api/crypto-analyze?symbol=${encodeURIComponent(a.symbol)}&tf=${tf}`:`/api/analyze?symbol=${encodeURIComponent(a.symbol)}&tf=${tf}`;
+  const [d,mtf,order,back,ctx]=await Promise.all([
+    api(baseUrl),mtfInput?Promise.resolve(mtfInput):api(`/api/multi-analyze?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}`),
+    a.type==='crypto'?api(`/api/orderflow?symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null),
+    api(`/api/backtest?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}&tf=4h`).catch(()=>null),
+    api(`/api/context?type=${encodeURIComponent(a.type)}&symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null)
+  ]);
+  const final=finalDecision(a,d,mtf,order,back,ctx),timing=timingQuality(a,d,order),validation=validation100(a,d,mtf,order,back,ctx,final,timing);
+  return{a,d,mtf,order,back,ctx,final,timing,validation};
+}
+async function runValidatedMonitor(manual=false){
+  if(state.alertBusy)return;state.alertBusy=true;try{
+    updateAlertUI(manual?'Strict scan sedang berjalan…':'Memindai peluang strict 100/100…');
+    const seen=new Map(),pool=[...watches().map(w=>w.type==='crypto'?state.crypto.find(x=>x.id===w.id):state.macro.find(x=>x.id===w.id)).filter(Boolean),...candidatePool()];
+    const unique=pool.filter(a=>{const k=`${a.type}:${a.id}`;if(seen.has(k))return false;seen.set(k,1);return true}).slice(0,8),pre=[];
+    for(const a of unique){try{const mtf=await api(`/api/multi-analyze?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}`);if(mtf?.summary?.label==='BUY'&&Number(mtf.summary.confidence)>=78)pre.push({a,mtf})}catch{}await sleep(120)}
+    pre.sort((x,y)=>Number(y.mtf.summary.confidence)-Number(x.mtf.summary.confidence));
+    for(const x of pre.slice(0,3)){try{const result=await deepValidateCandidate(x.a,x.mtf);state.validatedMap.set(`${x.a.type}:${x.a.id}`,result.validation);maybeNotifyValidatedBuy(x.a,result.validation,result)}catch{}await sleep(180)}
+    renderMarket();renderWatch();const valid=[...state.validatedMap.entries()].filter(([,v])=>v.valid).length;updateAlertUI(`Scan ${new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} • ${valid} Validated Buy ditemukan`);
+    if(manual&&!valid)showToast('Strict scan selesai','Belum ada aset yang lolos 10/10 gate saat ini.');
+  }finally{state.alertBusy=false}
+}
+function startValidatedMonitor(runNow=false){
+  if(state.alertMonitor)clearInterval(state.alertMonitor);if(!alertPrefs().enabled){updateAlertUI();return}const ms=Math.max(3,Number(alertPrefs().intervalMinutes||5))*60000;if(runNow)setTimeout(()=>runValidatedMonitor(false),1200);state.alertMonitor=setInterval(()=>runValidatedMonitor(false),ms);updateAlertUI();
+}
+function renderDetail(a,d,mtf,order,back,ctx){const cur=a.type==='crypto'?cryptoLive(a):a,final=finalDecision(a,d,mtf,order,back,ctx),timing=timingQuality(a,d,order),validation=validation100(a,d,mtf,order,back,ctx,final,timing),I=d.indicators||{},L=d.levels||{},frames=Object.fromEntries((mtf?.frames||[]).map(x=>[x.timeframe,x])),watched=isWatched(a),chg=Number(cur.change24h??cur.percentChange),C=d.currency||cur.currency||'USD';state.validatedMap.set(`${a.type}:${a.id}`,validation);maybeNotifyValidatedBuy(a,validation,{d,mtf,order,back,ctx,final,timing});$('#detailContent').innerHTML=`
 <div class="detail-head"><div class="detail-type">${a.isMeme?'MEME COIN • ':''}${esc(a.type.toUpperCase())} • ${esc(a.symbol)}<span class="live-badge">DATA-LIVE</span></div><h2>${esc(a.name)}</h2><div class="detail-price-row"><div id="liveDetailPrice" class="detail-price">${fmt(cur.price,C)}</div><div class="detail-change ${chg>=0?'positive':'negative'}">${pct(chg)}</div></div></div>
 <div class="final-card ${esc(final.tone)}"><div class="final-top"><div><span class="decision-kicker">FINAL DECISION</span><div class="decision-title">${esc(final.label)}</div></div><div class="confidence"><strong>${final.confidence}%</strong><span>model confidence*</span></div></div><div class="decision-reason">${esc(final.reason)}</div><div class="timing-bar"><span>TIMING QUALITY</span><b class="${esc(timing.tone)}">${esc(timing.label)} • ${timing.score}/100</b></div></div>
+<div class="validation-card ${validation.valid?'valid':''}"><div class="validation-head"><div><span class="decision-kicker">STRICT BUY VALIDATION</span><h4>${esc(validation.label)}</h4></div><strong>${validation.score}/100</strong></div><div class="validation-sub">${esc(validation.reason)}</div><div class="gate-grid">${validation.gates.map(g=>`<div class="gate ${g.pass?'pass':''}"><i></i>${esc(g.name)}</div>`).join('')}</div></div>
 <div class="intelligence-grid">${intel('Market Regime',state.regime?.label,state.regime?.tone,`${state.regime?.score??'—'}/100`)}${intel('Order Flow',order?.label||'N/A',order?.tone||'wait',order?`${order.score}/100`:'crypto only')}${intel('Historical',back?.grade||'N/A',back?.tone||'wait',back?.sampleSize?`${back.hitRate??'—'}% hit • n=${back.sampleSize}`:'insufficient')}${intel('Event Risk',ctx?.eventRisk?.level||'UNKNOWN',ctx?.eventRisk?.tone||'wait',ctx?.eventRisk?.reason||'optional feed')}</div>
 <div class="timeframe-row">${TFS.map(tf=>`<button class="tf-btn ${tf===state.timeframe?'active':''}" data-tf="${tf}">${tf.toUpperCase()}</button>`).join('')}</div>
 <div class="chartbox"><canvas id="detailChart"></canvas></div>
@@ -165,4 +233,8 @@ ${ctx?.news?.length?`<div class="section-card"><h4>Latest Context</h4><div class
 <button class="watch-action" id="watchBtn">${watched?'Hapus dari Watchlist':'★ Tambah ke Watchlist'}</button><p class="disclaimer">*Model confidence = tingkat keselarasan evidence, bukan probabilitas pasti profit. Historical hit rate berasal dari rule-set yang sama pada data lampau dan bukan jaminan hasil masa depan.</p>`;$$('[data-tf]').forEach(b=>b.onclick=()=>{state.timeframe=b.dataset.tf;store.set('inv_tf_v7',state.timeframe);loadDetail()});requestAnimationFrame(()=>drawCandles($('#detailChart'),d.history||[],L));$('#watchBtn').onclick=()=>{watched?removeWatch(a):addWatch({id:a.id,type:a.type,symbol:a.symbol,name:a.name,isMeme:a.isMeme});renderDetail(a,d,mtf,order,back,ctx)}}
 function drawCandles(canvas,rows,L){if(!canvas||!rows.length)return;const ctx=canvas.getContext('2d'),r=canvas.getBoundingClientRect(),dpr=devicePixelRatio||1;canvas.width=Math.floor(r.width*dpr);canvas.height=Math.floor(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);const w=r.width,h=r.height,p=9,c=rows.slice(-70),vals=c.flatMap(x=>[Number(x.high),Number(x.low)]).filter(Number.isFinite);if(!vals.length)return;let lo=Math.min(...vals),hi=Math.max(...vals),range=hi-lo||1;lo-=range*.07;hi+=range*.07;range=hi-lo;const y=v=>h-p-((v-lo)/range)*(h-2*p),cw=Math.max(2,(w-2*p)/c.length*.62);ctx.clearRect(0,0,w,h);for(const [label,val,color] of [['S',L.support,'#3bd38c88'],['R',L.resistance,'#ff6b7c88']])if(Number.isFinite(Number(val))){ctx.strokeStyle=color;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(p,y(val));ctx.lineTo(w-p,y(val));ctx.stroke();ctx.setLineDash([])}c.forEach((x,i)=>{const X=p+(i+.5)*(w-2*p)/c.length,o=Number(x.open),cl=Number(x.close),H=Number(x.high),l=Number(x.low),up=cl>=o;ctx.strokeStyle=up?'#3bd38c':'#ff6b7c';ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(X,y(H));ctx.lineTo(X,y(l));ctx.stroke();ctx.fillRect(X-cw/2,Math.min(y(o),y(cl)),cw,Math.max(1,Math.abs(y(o)-y(cl))))})}
 $$('[data-close-sheet]').forEach(x=>x.onclick=()=>$('#detailSheet').classList.add('hidden'));$('#clearWatch').onclick=()=>{store.set('inv_watch_v7',[]);renderWatch()};
-Promise.allSettled([loadHealth(),loadRegime(),loadCrypto(),loadMacro()]).then(()=>{renderMarket();renderWatch()});
+$('#alertToggle').onclick=()=>{alertPrefs().enabled?stopValidatedMonitor():requestAlertPermission()};
+$('#alertScanBtn').onclick=()=>runValidatedMonitor(true);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+updateAlertUI();
+Promise.allSettled([loadHealth(),loadRegime(),loadCrypto(),loadMacro()]).then(()=>{renderMarket();renderWatch();startValidatedMonitor(alertPrefs().enabled)});

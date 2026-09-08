@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07111c">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Investment AI OS v7.2</title>
+<title>Investment AI OS v7.3</title>
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -35,6 +36,19 @@
         <div class="mini-card"><span>Breadth 24H</span><b id="breadth24">—</b><small>aset yang hijau</small></div>
         <div class="mini-card"><span>Top Signal</span><b id="topSignal">—</b><small id="topSignalName">loading</small></div>
       </div>
+
+      <div class="validated-monitor card" id="validatedMonitor">
+        <div class="validated-monitor-main">
+          <span class="eyebrow">VALIDATED BUY ALERT</span>
+          <div class="validated-monitor-title"><h3 id="alertStatusTitle">Alert OFF</h3><span class="strict-badge">100/100 STRICT</span></div>
+          <p id="alertStatusText">Notifikasi hanya muncul saat seluruh 10 gate validasi BUY lolos.</p>
+        </div>
+        <div class="validated-actions">
+          <button class="ghost-btn" id="alertScanBtn">Scan Sekarang</button>
+          <button class="alert-toggle" id="alertToggle">Aktifkan Alert</button>
+        </div>
+      </div>
+      <div id="validatedLatest" class="validated-latest hidden"></div>
 
       <div class="search-wrap">
         <div class="search-box"><span>⌕</span><input id="globalSearch" inputmode="search" placeholder="Cari BTC, NVDA, XAU/USD…"><button id="searchBtn">Cari</button></div>
@@ -72,6 +86,7 @@
     <div id="detailContent"></div>
   </section>
 </div>
+<div id="toastStack" class="toast-stack" aria-live="polite"></div>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

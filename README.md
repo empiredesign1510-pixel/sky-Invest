@@ -1,4 +1,4 @@
-# Investment AI OS v7.2 — Vercel Stable
+# Investment AI OS v7.3 — Validated Buy Alert
 
 V7.2 menghapus backend WebSocket server (`api/stream.js`) dan dependency `ws`
 agar deployment lebih stabil pada Vercel.
@@ -65,3 +65,20 @@ Jika memakai repository V7 lama, hapus cache/deploy ulang setelah file lama diga
 
 ## Catatan
 `Model Confidence` adalah keselarasan evidence, bukan probabilitas pasti profit.
+
+
+## V7.3 Validated Buy Alert
+Notifikasi hanya dipicu jika Validation Score = 100/100, artinya seluruh 10 gate model lolos:
+1. Final Decision BUY
+2. Multi-Timeframe BUY
+3. Minimal 3 timeframe BUY dan tidak ada SELL
+4. MTF confidence >=82%
+5. Timing >=78 dan GOOD/EXCELLENT ENTRY
+6. Trend >=75 + RSI sehat + active signal BUY
+7. Historical validation: sample >=10, hit rate >=58%, expectancy positif
+8. Market regime mendukung
+9. Event risk LOW/MEDIUM
+10. Asset-specific confirmation (order flow crypto / fundamental saham / gold context)
+
+100/100 adalah kelulusan semua gate model, bukan jaminan profit 100%.
+Browser notification memerlukan HTTPS dan izin pengguna. Jika izin ditolak, in-app toast tetap tersedia selama website terbuka.
