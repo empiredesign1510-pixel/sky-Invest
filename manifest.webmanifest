@@ -1,9 +1,37 @@
 {
-  "name": "Investment AI Decision Intelligence",
+  "name": "Investment AI OS — Power Core",
   "short_name": "Investment AI",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#07111c",
   "theme_color": "#07111c",
-  "lang": "id-ID"
+  "lang": "id-ID",
+  "description": "Decision intelligence untuk saham, crypto, meme coin, dan XAU/USD.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scanner",
+      "short_name": "Scanner",
+      "url": "/?tab=scanner"
+    },
+    {
+      "name": "Portfolio",
+      "short_name": "Portfolio",
+      "url": "/?tab=portfolio"
+    }
+  ]
 }

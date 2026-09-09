@@ -5,8 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07111c">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Investment AI OS v7.3</title>
+<meta name="mobile-web-app-capable" content="yes">
+<title>Investment AI OS v8</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -14,34 +17,47 @@
   <header class="app-header">
     <div class="brand-lockup">
       <div class="brand-mark">IA</div>
-      <div><h1>Investment AI</h1><p>Decision Intelligence</p></div>
+      <div><h1>Investment AI</h1><p>Power Core v8</p></div>
     </div>
-    <div class="data-chip"><i></i><span id="liveText">Connecting…</span></div>
+    <div class="header-actions">
+      <button id="installBtn" class="install-btn">⇩ Download App</button>
+      <div class="data-chip"><i></i><span id="liveText">Connecting…</span></div>
+    </div>
   </header>
 
   <nav class="bottom-nav" aria-label="Navigasi utama">
-    <button class="active" data-tab="market"><span class="nav-symbol">⌁</span><span>Market</span></button>
+    <button class="active" data-tab="market"><span class="nav-symbol">⌁</span><span>Command</span></button>
     <button data-tab="scanner"><span class="nav-symbol">◇</span><span>Scanner</span></button>
-    <button data-tab="watchlist"><span class="nav-symbol">★</span><span>Watchlist</span></button>
+    <button data-tab="portfolio"><span class="nav-symbol">▦</span><span>Portfolio</span></button>
+    <button data-tab="lab"><span class="nav-symbol">◫</span><span>Lab</span></button>
   </nav>
 
   <main class="main-content">
     <section id="market" class="screen">
-      <div class="market-hero card" id="regimeCard">
-        <div><span class="eyebrow">MARKET REGIME</span><h2 id="regimeLabel">Analysing…</h2><p id="regimeReason">Membaca breadth dan struktur BTC.</p></div>
-        <div class="regime-score"><strong id="regimeScore">—</strong><span>/100</span></div>
+      <div class="command-hero">
+        <div class="market-hero card" id="regimeCard">
+          <div><span class="eyebrow">AI DAILY COMMAND CENTER</span><h2 id="regimeLabel">Analysing…</h2><p id="regimeReason">Membaca kondisi market, breadth, dan struktur BTC.</p></div>
+          <div class="regime-score"><strong id="regimeScore">—</strong><span>/100</span></div>
+        </div>
+        <div class="command-side card">
+          <span class="eyebrow">MACRO CONTEXT</span>
+          <b id="macroLabel">Loading…</b>
+          <small id="macroReason">Menilai rates & inflation context.</small>
+        </div>
       </div>
 
-      <div class="overview-grid">
+      <div class="overview-grid v8-overview">
         <div class="mini-card"><span>Breadth 24H</span><b id="breadth24">—</b><small>aset yang hijau</small></div>
         <div class="mini-card"><span>Top Signal</span><b id="topSignal">—</b><small id="topSignalName">loading</small></div>
+        <div class="mini-card"><span>Portfolio P/L</span><b id="homePortfolioPnl">—</b><small id="homePortfolioMeta">belum ada posisi</small></div>
+        <div class="mini-card"><span>Server Agent</span><b id="agentStatus">—</b><small id="agentMeta">optional 24/7</small></div>
       </div>
 
       <div class="validated-monitor card" id="validatedMonitor">
         <div class="validated-monitor-main">
           <span class="eyebrow">VALIDATED BUY ALERT</span>
-          <div class="validated-monitor-title"><h3 id="alertStatusTitle">Alert OFF</h3><span class="strict-badge">100/100 STRICT</span></div>
-          <p id="alertStatusText">Notifikasi hanya muncul saat seluruh 10 gate validasi BUY lolos.</p>
+          <div class="validated-monitor-title"><h3 id="alertStatusTitle">Alert OFF</h3><span class="strict-badge">STRICT GATES</span></div>
+          <p id="alertStatusText">Notifikasi hanya muncul ketika seluruh gate model penting lolos.</p>
         </div>
         <div class="validated-actions">
           <button class="ghost-btn" id="alertScanBtn">Scan Sekarang</button>
@@ -57,24 +73,61 @@
 
       <div class="section-head"><div><span class="eyebrow">MARKET</span><h3>Daftar Aset</h3></div><span class="freshness" id="lastUpdate">—</span></div>
       <div class="filter-row">
-        <button class="filter active" data-filter="all">Semua</button><button class="filter" data-filter="crypto">Crypto</button><button class="filter meme-filter" data-filter="meme">Meme</button><button class="filter" data-filter="stock">Saham</button><button class="filter" data-filter="gold">Gold</button>
+        <button class="filter active" data-filter="all">Semua</button>
+        <button class="filter" data-filter="crypto">Crypto</button>
+        <button class="filter meme-filter" data-filter="meme">Meme</button>
+        <button class="filter" data-filter="stock">Saham</button>
+        <button class="filter" data-filter="gold">Gold</button>
       </div>
-      <div id="assetList" class="asset-list"><div class="skeleton-block"></div><div class="skeleton-block"></div><div class="skeleton-block"></div></div>
+      <div id="assetList" class="asset-list"><div class="skeleton-block"></div><div class="skeleton-block"></div></div>
     </section>
 
     <section id="scanner" class="screen hidden">
       <div class="scanner-hero card">
-        <span class="eyebrow">AI OPPORTUNITY SCANNER</span><h2>Cari peluang terbaik sekarang</h2><p>Deep scan memakai multi-timeframe. Hasil final tetap harus dibuka untuk order flow, event risk, dan historical validation.</p>
+        <span class="eyebrow">AI OPPORTUNITY SCANNER</span>
+        <h2>Temukan setup terbaik sekarang</h2>
+        <p>Scanner memprioritaskan multi-timeframe, timing, risk penalty, dan market regime. Buka aset untuk full validation.</p>
         <button class="primary-btn" id="scanBtn">Mulai Deep Scan</button>
         <div class="scan-progress hidden" id="scanProgress"><div><i id="scanBar"></i></div><span id="scanText">Preparing…</span></div>
       </div>
       <div class="section-head"><div><span class="eyebrow">RANKING</span><h3>Opportunity Board</h3></div><span class="freshness">MTF ranked</span></div>
-      <div id="scannerResults" class="scanner-list"><div class="empty-state"><b>Belum ada deep scan.</b><span>Tekan tombol di atas untuk menganalisis kandidat teratas.</span></div></div>
+      <div id="scannerResults" class="scanner-list"><div class="empty-state"><b>Belum ada deep scan.</b><span>Tekan tombol di atas.</span></div></div>
     </section>
 
-    <section id="watchlist" class="screen hidden">
-      <div class="section-head page-head"><div><span class="eyebrow">WATCHLIST</span><h2>Aset yang dipantau</h2></div><button class="ghost-btn" id="clearWatch">Bersihkan</button></div>
-      <div id="watchList" class="asset-list"><div class="empty-state"><b>Watchlist kosong.</b><span>Tambahkan aset dari halaman Market.</span></div></div>
+    <section id="portfolio" class="screen hidden">
+      <div class="portfolio-hero card">
+        <span class="eyebrow">PORTFOLIO INTELLIGENCE</span>
+        <div class="portfolio-total"><div><h2 id="portfolioValue">—</h2><p>Total nilai portfolio</p></div><div><b id="portfolioPnl">—</b><span>P/L</span></div></div>
+        <div class="portfolio-grid">
+          <div><span>Risk / Idea</span><input id="riskPerIdea" type="number" min=".25" max="3" step=".25" value="1"></div>
+          <div><span>Capital Base (asset currency)</span><input id="capitalBase" type="number" min="0" step="100" value="1000"></div>
+        </div>
+      </div>
+
+      <div class="section-head"><div><span class="eyebrow">POSITIONS</span><h3>Holdings</h3></div><button class="ghost-btn" id="addPositionBtn">+ Tambah</button></div>
+      <div id="portfolioList" class="portfolio-list"></div>
+
+      <div class="section-head"><div><span class="eyebrow">RISK</span><h3>Correlation & Exposure</h3></div><button class="ghost-btn" id="correlationBtn">Hitung</button></div>
+      <div id="correlationBox" class="card compact-card"><span class="context-note">Tambahkan minimal 2 posisi, lalu tekan Hitung.</span></div>
+    </section>
+
+    <section id="lab" class="screen hidden">
+      <div class="lab-grid">
+        <div class="card lab-card">
+          <span class="eyebrow">CALIBRATION LAB</span>
+          <h2 id="calibrationHit">—</h2>
+          <p id="calibrationMeta">Signal akan dicatat dan dievaluasi secara lokal.</p>
+        </div>
+        <div class="card lab-card">
+          <span class="eyebrow">PAPER TRADING</span>
+          <h2 id="paperPnl">—</h2>
+          <p id="paperMeta">Belum ada paper trade.</p>
+        </div>
+      </div>
+      <div class="section-head"><div><span class="eyebrow">SIGNAL MEMORY</span><h3>Calibration History</h3></div><button class="ghost-btn" id="clearSignalsBtn">Reset</button></div>
+      <div id="signalHistory" class="history-list"></div>
+      <div class="section-head"><div><span class="eyebrow">PAPER BOOK</span><h3>Paper Trades</h3></div><button class="ghost-btn" id="clearPaperBtn">Reset</button></div>
+      <div id="paperList" class="history-list"></div>
     </section>
   </main>
 </div>
@@ -86,6 +139,20 @@
     <div id="detailContent"></div>
   </section>
 </div>
+
+<div id="positionModal" class="modal hidden">
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-card">
+    <div class="section-head"><div><span class="eyebrow">ADD POSITION</span><h3>Tambah ke Portfolio</h3></div><button class="sheet-close modal-x" data-close-modal>×</button></div>
+    <label>Jenis aset<select id="positionType"><option value="stock">Saham</option><option value="crypto">Crypto</option><option value="gold">Gold</option></select></label>
+    <label>Symbol<input id="positionSymbol" placeholder="AAPL / BTC / XAU/USD"></label>
+    <label>Nama<input id="positionName" placeholder="Nama aset"></label>
+    <label>Jumlah<input id="positionQty" type="number" step="any" placeholder="1"></label>
+    <label>Harga rata-rata<input id="positionAvg" type="number" step="any" placeholder="100"></label>
+    <button id="savePositionBtn" class="primary-btn">Simpan Posisi</button>
+  </div>
+</div>
+
 <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 <script type="module" src="/app.js"></script>
 </body>

@@ -1,84 +1,106 @@
-# Investment AI OS v7.3 — Validated Buy Alert
+# Investment AI OS v8 — Power Core
 
-V7.2 menghapus backend WebSocket server (`api/stream.js`) dan dependency `ws`
-agar deployment lebih stabil pada Vercel.
+V8 adalah upgrade besar dari V7.3 dan tetap memakai arsitektur Vercel Stable (tanpa backend WebSocket custom).
 
-## Arsitektur realtime
+## Fitur utama
 
-### Crypto
-- CoinGecko untuk discovery Crypto/Meme.
-- Binance public WebSocket langsung dari browser untuk harga live.
-- Binance REST untuk OHLC / candlestick / order flow jika pair tersedia.
-
-### Saham + XAU/USD
-- Twelve Data melalui `/api/quotes`.
-- Auto-refresh setiap 15 detik.
-- API key tetap aman di server/Vercel Environment Variables.
-- Tidak ada API key yang dikirim ke browser.
-
-## Fitur analisis tetap ada
-- Market Regime
+### Decision Intelligence
 - Multi-Timeframe 15M + 1H + 4H + 1D
+- Market Regime
 - Timing Quality
-- Order Flow crypto
+- Strict Validated Buy
 - Historical validation
-- Fundamental + news/event risk
-- Meme Coin
-- Opportunity Scanner
-- Candlestick
-- Entry / Target / Invalidation / Support / Resistance
-- Watchlist
-- Mobile/Desktop professional UI
+- Explainable AI contribution
+- Data Quality Gate
+- Asset-specific model:
+  - Major crypto / altcoin
+  - Meme coin
+  - Stocks
+  - XAU/USD
+
+### Crypto Power Layer
+- Binance public live price
+- Binance order book + aggTrades
+- Cumulative delta proxy
+- Bid/ask wall ratio
+- Futures funding
+- Open interest + OI change
+- Global long/short ratio
+- CoinGecko supply / FDV / developer context
+- BTC mempool context
+- Meme risk filter
+
+### Stocks / Gold
+- Twelve Data quote + OHLC
+- Alpha Vantage fundamentals
+- News/event risk
+- Earnings calendar guard
+- Macro context:
+  - US 10Y Treasury yield
+  - Fed Funds
+  - CPI
+
+### Portfolio Intelligence
+- Manual positions
+- Live mark-to-market
+- Unrealized P/L
+- Adaptive position sizing
+- 90-day return correlation
+- Exposure-aware workflow
+
+### Calibration + Paper Trading
+- Signal memory
+- Signal outcome check after >=4 hours
+- Local hit rate
+- Bounded calibration modifier
+- Paper BUY/SELL
+- TP/STOP monitoring
+- Paper performance
+
+### Server Agent
+`/api/agent-run` dapat dipanggil scheduler secara periodik.
+Jika Upstash dikonfigurasi, hasil terbaru disimpan dan dibaca melalui `/api/agent-feed`.
+
+Penting: `vercel.json` utama sengaja TIDAK memaksa cron agar deployment tetap kompatibel dengan plan Vercel yang berbeda.
+Contoh cron tersedia di `vercel-cron.example.json`.
+Jika plan Anda mendukung cron hourly, gabungkan bagian `crons` ke `vercel.json`.
+
+### Download App / PWA
+Website sudah installable sebagai PWA.
+- Tombol **Download App** tersedia di header.
+- Android Chrome: akan memunculkan native install prompt jika browser mengizinkan.
+- iOS Safari: Share -> Add to Home Screen.
+- Core UI dicache oleh service worker.
+- Icon 192px dan 512px disertakan.
 
 ## Environment Variables
 
-Wajib agar saham + Gold aktif:
+Minimal:
 `TWELVEDATA_API_KEY`
 
-Direkomendasikan:
+Recommended:
 `COINGECKO_API_KEY`
-
-Opsional untuk fundamental/news:
 `ALPHAVANTAGE_API_KEY`
 
+Optional 24/7 server-agent persistence:
+`UPSTASH_REDIS_REST_URL`
+`UPSTASH_REDIS_REST_TOKEN`
+`CRON_SECRET`
+
 Tidak perlu:
-- BINANCE_API_KEY
-- BINANCE_SECRET
-- WebSocket backend setting
-- package `ws`
-- Fluid Compute untuk fungsi stream custom
+`BINANCE_API_KEY`
+`BINANCE_SECRET`
 
-## Deploy ke Vercel
+## Deploy
+1. Replace seluruh file versi lama dengan isi folder V8.
+2. Pastikan `api/stream.js` TIDAK ada.
+3. Vercel Framework Preset: Other.
+4. Build Command / Output Directory: default/kosong.
+5. Tambahkan env variables.
+6. Redeploy.
 
-1. Upload seluruh isi folder project ke root repository GitHub.
-2. Pastikan repository TIDAK punya `api/stream.js` lama.
-3. Pastikan `package.json` dari V7.2 ikut menggantikan versi lama.
-4. Vercel -> Add New Project / import repo.
-5. Framework Preset: Other.
-6. Build Command: kosong/default.
-7. Output Directory: kosong/default.
-8. Install Command: kosong/default.
-9. Tambahkan Environment Variables.
-10. Deploy.
-
-Jika memakai repository V7 lama, hapus cache/deploy ulang setelah file lama diganti.
-
-## Catatan
-`Model Confidence` adalah keselarasan evidence, bukan probabilitas pasti profit.
-
-
-## V7.3 Validated Buy Alert
-Notifikasi hanya dipicu jika Validation Score = 100/100, artinya seluruh 10 gate model lolos:
-1. Final Decision BUY
-2. Multi-Timeframe BUY
-3. Minimal 3 timeframe BUY dan tidak ada SELL
-4. MTF confidence >=82%
-5. Timing >=78 dan GOOD/EXCELLENT ENTRY
-6. Trend >=75 + RSI sehat + active signal BUY
-7. Historical validation: sample >=10, hit rate >=58%, expectancy positif
-8. Market regime mendukung
-9. Event risk LOW/MEDIUM
-10. Asset-specific confirmation (order flow crypto / fundamental saham / gold context)
-
-100/100 adalah kelulusan semua gate model, bukan jaminan profit 100%.
-Browser notification memerlukan HTTPS dan izin pengguna. Jika izin ditolak, in-app toast tetap tersedia selama website terbuka.
+## Catatan penting
+- `100/100 Validated Buy` berarti seluruh gate model lolos, bukan jaminan profit 100%.
+- Calibration local baru bermakna setelah jumlah sampel cukup.
+- On-chain layer generic adalah network/supply context; BTC mendapat tambahan mempool context.
+- Server agent 24/7 membutuhkan scheduler eksternal/Vercel Cron dan, untuk persistence lintas instance, Upstash.
