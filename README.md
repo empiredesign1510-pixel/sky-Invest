@@ -1,3 +1,20 @@
+# Investment AI OS v8.1.2 — Gateway Runtime Fix
+
+## Penyebab data hilang pada V8.1.1
+`server/crypto-history.js` mengimpor `actionSignal`, tetapi export tersebut sudah tidak ada
+di `server/_lib/indicators.js`.
+
+Karena V8.1.1 memakai satu API gateway yang mengimpor seluruh route pada startup,
+satu import yang invalid membuat semua endpoint API gagal dimuat sekaligus.
+
+V8.1.2 menambahkan kembali compatibility export `actionSignal` dan paket ini diuji dengan:
+- `node --check` semua JavaScript
+- dynamic import `/api/index.js`
+- local invocation `/api/index?route=health`
+- ZIP integrity test
+
+Jadi validasi sekarang mengecek runtime module graph, bukan syntax saja.
+
 # Investment AI OS v8.1.1 — Vercel Hobby Fix
 
 ## Perbaikan deployment
