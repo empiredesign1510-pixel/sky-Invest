@@ -3,7 +3,7 @@ import {kvConfigured} from './_lib/kv.js';
 
 export default async function handler(req,res){
   json(res,200,{
-    ok:true,version:'8.1.1',deploymentMode:'vercel-stable',
+    ok:true,version:'8.1.2',deploymentMode:'vercel-stable',
     crypto:{provider:'CoinGecko + Binance',configured:true,liveMode:'Browser WebSocket'},
     stockGold:{provider:'Twelve Data',configured:Boolean(process.env.TWELVEDATA_API_KEY),liveMode:'REST auto-refresh 15s'},
     context:{provider:'Alpha Vantage',configured:Boolean(process.env.ALPHAVANTAGE_API_KEY)},
