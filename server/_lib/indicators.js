@@ -165,3 +165,53 @@ export function timingQuality(t,candles,signal,levels){
   else if(buyish){label='TOO LATE / CHASING';tone='sell'}
   return{label,tone,score,reason:notes.slice(0,3).join(' • ')||'Belum ada edge timing yang kuat.'};
 }
+
+// Backward-compatible technical-only signal used by historical endpoints.
+// Unlike advancedSignal(), this does not require OHLCV candles.
+export function actionSignal(t){
+  const p=Number(t?.latest),e20=Number(t?.ema20),e50=Number(t?.ema50),
+        r=Number(t?.rsi14),mh=Number(t?.macd?.histogram);
+  let score=0,reasons=[],warnings=[];
+
+  if(Number.isFinite(p)&&Number.isFinite(e20)){
+    if(p>e20){score+=18;reasons.push('Harga di atas EMA20')}
+    else{score-=18;warnings.push('Harga di bawah EMA20')}
+  }
+  if(Number.isFinite(p)&&Number.isFinite(e50)){
+    if(p>e50){score+=16;reasons.push('Harga di atas EMA50')}
+    else{score-=16;warnings.push('Harga di bawah EMA50')}
+  }
+  if(Number.isFinite(e20)&&Number.isFinite(e50)){
+    if(e20>e50){score+=20;reasons.push('EMA20 di atas EMA50')}
+    else{score-=20;warnings.push('EMA20 di bawah EMA50')}
+  }
+  if(Number.isFinite(mh)){
+    if(mh>=0){score+=16;reasons.push('MACD positif')}
+    else{score-=16;warnings.push('MACD negatif')}
+  }
+  if(Number.isFinite(r)){
+    if(r>=50&&r<=70){score+=18;reasons.push(`RSI sehat ${r.toFixed(1)}`)}
+    else if(r<42){score-=14;warnings.push(`RSI lemah ${r.toFixed(1)}`)}
+    else if(r>76){score-=5;warnings.push(`RSI panas ${r.toFixed(1)}`)}
+    else score+=5;
+  }
+
+  let label='WAIT & SEE',tone='wait';
+  if(score>=52){label='BUY';tone='buy'}
+  else if(score>=22){label='HOLD';tone='hold'}
+  else if(score<=-45){label='SELL';tone='sell'}
+
+  let confidence=Math.round(clamp(58+Math.min(30,Math.abs(score)*.35),55,88));
+  if(label==='WAIT & SEE')confidence=Math.min(confidence,70);
+
+  return{
+    label,tone,confidence,directionalScore:score,
+    reason:(label==='BUY'?'Technical history bullish. ':
+            label==='SELL'?'Technical history bearish. ':
+            label==='HOLD'?'Trend positif tetapi belum ideal. ':
+            'Technical history belum selaras. ')+
+           (reasons.slice(0,2).join(' • ')||warnings.slice(0,2).join(' • ')),
+    reasons:reasons.slice(0,4),
+    warnings:warnings.slice(0,3)
+  };
+}
