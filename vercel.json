@@ -1,4 +1,83 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/agent-feed",
+      "destination": "/api/index?route=agent-feed"
+    },
+    {
+      "source": "/api/agent-run",
+      "destination": "/api/index?route=agent-run"
+    },
+    {
+      "source": "/api/analyze",
+      "destination": "/api/index?route=analyze"
+    },
+    {
+      "source": "/api/backtest",
+      "destination": "/api/index?route=backtest"
+    },
+    {
+      "source": "/api/context",
+      "destination": "/api/index?route=context"
+    },
+    {
+      "source": "/api/correlation",
+      "destination": "/api/index?route=correlation"
+    },
+    {
+      "source": "/api/crypto-analyze",
+      "destination": "/api/index?route=crypto-analyze"
+    },
+    {
+      "source": "/api/crypto-history",
+      "destination": "/api/index?route=crypto-history"
+    },
+    {
+      "source": "/api/crypto",
+      "destination": "/api/index?route=crypto"
+    },
+    {
+      "source": "/api/derivatives",
+      "destination": "/api/index?route=derivatives"
+    },
+    {
+      "source": "/api/events",
+      "destination": "/api/index?route=events"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/index?route=health"
+    },
+    {
+      "source": "/api/macro",
+      "destination": "/api/index?route=macro"
+    },
+    {
+      "source": "/api/multi-analyze",
+      "destination": "/api/index?route=multi-analyze"
+    },
+    {
+      "source": "/api/onchain",
+      "destination": "/api/index?route=onchain"
+    },
+    {
+      "source": "/api/orderflow",
+      "destination": "/api/index?route=orderflow"
+    },
+    {
+      "source": "/api/quotes",
+      "destination": "/api/index?route=quotes"
+    },
+    {
+      "source": "/api/regime",
+      "destination": "/api/index?route=regime"
+    },
+    {
+      "source": "/api/search",
+      "destination": "/api/index?route=search"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

@@ -1,3 +1,40 @@
+# Investment AI OS v8.1.1 — Vercel Hobby Fix
+
+## Perbaikan deployment
+Versi V8.1 sebelumnya memiliki 19 endpoint JavaScript langsung di `/api`.
+Pada Vercel Hobby, direct Vercel Functions dibatasi 12 per deployment.
+
+V8.1.1 mengubah arsitektur menjadi:
+
+Frontend
+→ /api/<route>
+→ Vercel rewrite
+→ /api/index.js
+→ server/<route>.js
+
+Jadi Vercel hanya membangun **1 Function**, sedangkan semua mesin analisis tetap tersedia.
+
+## Penting saat upload ke GitHub
+Hapus folder `/api` versi lama terlebih dahulu atau pastikan repository akhirnya hanya memiliki:
+
+api/
+  index.js
+
+Semua file seperti:
+- analyze.js
+- crypto.js
+- multi-analyze.js
+- orderflow.js
+- derivatives.js
+- onchain.js
+- macro.js
+- events.js
+dan endpoint lain sekarang berada di:
+
+server/
+
+Jangan membiarkan salinan lama tetap berada di `/api`, karena akan dihitung lagi sebagai Function.
+
 # Investment AI OS v8.1 — Unified Decision
 
 Upgrade utama V8.1 adalah sinkronisasi keputusan.
