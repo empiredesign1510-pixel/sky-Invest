@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#07111c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Investment AI OS v8</title>
+<title>Investment AI OS v8.1</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
@@ -17,7 +17,7 @@
   <header class="app-header">
     <div class="brand-lockup">
       <div class="brand-mark">IA</div>
-      <div><h1>Investment AI</h1><p>Power Core v8</p></div>
+      <div><h1>Investment AI</h1><p>Unified Decision v8.1</p></div>
     </div>
     <div class="header-actions">
       <button id="installBtn" class="install-btn">⇩ Download App</button>
@@ -66,18 +66,60 @@
       </div>
       <div id="validatedLatest" class="validated-latest hidden"></div>
 
+      <div class="daily-board card" id="dailyBoard">
+        <div class="daily-board-head">
+          <div>
+            <span class="eyebrow">BEST AVAILABLE TODAY</span>
+            <h3 id="dailyBoardTitle">Mencari setup terbaik…</h3>
+            <p id="dailyBoardText">Keputusan memakai engine yang sama dengan halaman detail.</p>
+          </div>
+          <button class="ghost-btn" id="dailyRefreshBtn">Refresh Scan</button>
+        </div>
+        <div class="daily-board-meta">
+          <span id="dailyScanStatus">Belum dipindai</span>
+          <span>4H core + MTF 15M/1H/4H/1D</span>
+        </div>
+        <div id="dailyOpportunityList" class="daily-opportunity-list">
+          <div class="daily-placeholder">Menunggu market data…</div>
+        </div>
+      </div>
+
       <div class="search-wrap">
         <div class="search-box"><span>⌕</span><input id="globalSearch" inputmode="search" placeholder="Cari BTC, NVDA, XAU/USD…"><button id="searchBtn">Cari</button></div>
         <div id="searchResults" class="search-results hidden"></div>
       </div>
 
       <div class="section-head"><div><span class="eyebrow">MARKET</span><h3>Daftar Aset</h3></div><span class="freshness" id="lastUpdate">—</span></div>
-      <div class="filter-row">
-        <button class="filter active" data-filter="all">Semua</button>
-        <button class="filter" data-filter="crypto">Crypto</button>
-        <button class="filter meme-filter" data-filter="meme">Meme</button>
-        <button class="filter" data-filter="stock">Saham</button>
-        <button class="filter" data-filter="gold">Gold</button>
+      <div class="market-filter-panel">
+        <div class="filter-line">
+          <span class="filter-label">Instrumen</span>
+          <div class="filter-row">
+            <button class="filter active" data-filter="all">Semua</button>
+            <button class="filter" data-filter="crypto">Crypto</button>
+            <button class="filter meme-filter" data-filter="meme">Meme</button>
+            <button class="filter" data-filter="stock">Saham</button>
+            <button class="filter" data-filter="gold">Gold</button>
+          </div>
+        </div>
+        <div class="filter-line">
+          <span class="filter-label">Keputusan</span>
+          <div class="filter-row decision-filter-row">
+            <button class="decision-filter active" data-decision="all">Semua</button>
+            <button class="decision-filter buy-filter" data-decision="BUY">BUY</button>
+            <button class="decision-filter hold-filter" data-decision="HOLD">HOLD</button>
+            <button class="decision-filter wait-filter" data-decision="WAIT & SEE">WAIT</button>
+            <button class="decision-filter sell-filter" data-decision="SELL">SELL</button>
+            <button class="decision-filter validated-filter" data-decision="VALIDATED">VALID</button>
+          </div>
+        </div>
+        <div class="market-filter-footer">
+          <span id="syncCoverage">0 instrumen tersinkron</span>
+          <select id="marketSort" aria-label="Urutkan market">
+            <option value="best">Best Setup</option>
+            <option value="confidence">Confidence</option>
+            <option value="change">24H Change</option>
+          </select>
+        </div>
       </div>
       <div id="assetList" class="asset-list"><div class="skeleton-block"></div><div class="skeleton-block"></div></div>
     </section>

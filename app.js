@@ -1,10 +1,10 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const state={filter:'all',crypto:[],macro:[],regime:null,selected:null,analysis:null,timeframe:'4h',liveCrypto:new Map(),binanceWs:null,macroPoll:null,macroSymbols:[],lastTick:null,health:null,mtfCache:new Map(),scanResults:[],validatedMap:new Map(),alertMonitor:null,alertBusy:false,macroIntel:null,agentFeed:null,installPrompt:null,correlation:null};
+const state={filter:'all',decisionFilter:'all',sortMode:'best',crypto:[],macro:[],regime:null,selected:null,analysis:null,timeframe:'4h',liveCrypto:new Map(),binanceWs:null,macroPoll:null,macroSymbols:[],lastTick:null,health:null,mtfCache:new Map(),scanResults:[],validatedMap:new Map(),decisionCache:new Map(),alertMonitor:null,alertBusy:false,macroIntel:null,agentFeed:null,installPrompt:null,correlation:null,dailyScanBusy:false,dailyScanAt:null};
 const store={get(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const esc=(s='')=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const fmt=(v,c='USD')=>{const n=Number(v);if(!Number.isFinite(n))return'—';return new Intl.NumberFormat('id-ID',{style:'currency',currency:c,maximumFractionDigits:Math.abs(n)<10?6:2}).format(n)};
 const pct=v=>{const n=Number(v);return Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(2)}%`:'—'};
-const short=s=>s?.label==='WAIT & SEE'?'WAIT':(s?.label||'WAIT');
+const short=s=>s?.label==='WAIT & SEE'?'WAIT':s?.label==='CHECKING'?'CHECK':(s?.label||'WAIT');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(url){const r=await fetch(url),d=await r.json().catch(()=>({}));if(!r.ok||d.ok===false)throw new Error(d.error||`HTTP ${r.status}`);return d}
 function alertPrefs(){return store.get('inv_validated_alert_v73',{enabled:false,intervalMinutes:5})}
@@ -13,7 +13,7 @@ function showToast(title,message){const stack=$('#toastStack');if(!stack)return;
 function updateAlertUI(lastText=''){
   const pref=alertPrefs(),card=$('#validatedMonitor'),title=$('#alertStatusTitle'),text=$('#alertStatusText'),btn=$('#alertToggle');if(!card)return;
   card.classList.toggle('active',pref.enabled);title.textContent=pref.enabled?'Alert Aktif':'Alert OFF';btn.textContent=pref.enabled?'Matikan Alert':'Aktifkan Alert';
-  text.textContent=pref.enabled?(lastText||`Memantau kandidat setiap ${pref.intervalMinutes} menit. Alert hanya untuk Validation Score 100/100.`):'Notifikasi hanya muncul saat seluruh 10 gate validasi BUY lolos.';
+  text.textContent=pref.enabled?(lastText||`Memantau kandidat setiap ${pref.intervalMinutes} menit. Alert hanya untuk strict Validation Score 100/100.`):'Notifikasi hanya muncul saat seluruh 10 gate validasi BUY lolos.';
 }
 async function requestAlertPermission(){
   let browser='in-app only';
@@ -27,19 +27,74 @@ async function browserNotify(title,body){
 }
 function maybeNotifyValidatedBuy(a,validation,details){
   if(!validation?.valid)return;const key=`${a.type}:${a.symbol}`,hist=alertHistory(),last=Number(hist[key]||0);if(Date.now()-last<30*60*1000)return;
-  hist[key]=Date.now();store.set('inv_validated_history_v73',hist);const price=Number(details?.d?.quote?.price??a.price),msg=`${a.symbol} lolos 10/10 gate • Validation 100/100${Number.isFinite(price)?` • ${fmt(price,details?.d?.currency||a.currency||'USD')}`:''}`;
+  hist[key]=Date.now();store.set('inv_validated_history_v73',hist);const price=Number(details?.d?.quote?.price??a.price),msg=`${a.symbol} lolos seluruh gate • Validation 100/100${Number.isFinite(price)?` • ${fmt(price,details?.d?.currency||a.currency||'USD')}`:''}`;
   showToast(`VALIDATED BUY • ${a.symbol}`,msg);browserNotify(`VALIDATED BUY • ${a.symbol}`,msg);const box=$('#validatedLatest');if(box){box.classList.remove('hidden');box.innerHTML=`<div><strong>VALIDATED BUY • ${esc(a.symbol)}</strong><span>${esc(validation.reason)}</span></div><span class="validated-score">100/100</span>`}
 }
 
 function tab(id){$$('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));$$('.screen').forEach(x=>x.classList.toggle('hidden',x.id!==id));if(id==='portfolio')renderPortfolio();if(id==='lab')renderLab()}
 $$('.bottom-nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
 $$('.filter').forEach(b=>b.onclick=()=>{$$('.filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.filter=b.dataset.filter;renderMarket()});
+$$('.decision-filter').forEach(b=>b.onclick=()=>{$$('.decision-filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.decisionFilter=b.dataset.decision;renderMarket()});
+$('#marketSort').onchange=()=>{state.sortMode=$('#marketSort').value;renderMarket()};
 function watches(){return store.get('inv_watch_v7',store.get('inv_watch_v5',[]))}function isWatched(a){return watches().some(x=>x.type===a.type&&x.id===a.id)}function addWatch(a){const w=watches();if(!w.some(x=>x.type===a.type&&x.id===a.id))w.unshift({...a,added:Date.now()});store.set('inv_watch_v7',w.slice(0,100))}function removeWatch(a){store.set('inv_watch_v7',watches().filter(x=>!(x.id===a.id&&x.type===a.type)))}
 function cryptoLive(a){const t=state.liveCrypto.get(`${a.symbol}USDT`);if(!t)return a;return{...a,price:t.price,change24h:t.open?((t.price/t.open)-1)*100:a.change24h,liveAt:t.time}}
-function signalSpan(s){return`<span class="signal ${esc(s?.tone||'wait')}">${esc(short(s))}</span>`}
-function assetRow(a){const c=a.type==='crypto'?cryptoLive(a):a,s=c.signal||{label:'WAIT & SEE',tone:'wait'},chg=Number(c.change24h??c.percentChange),img=a.type==='crypto'&&a.image?`<img class="coin-img" src="${esc(a.image)}" alt="">`:`<div class="asset-icon">${a.type==='gold'?'AU':'ST'}</div>`;return`<article class="asset-row" data-open-type="${esc(a.type)}" data-open-id="${esc(a.id)}"><div class="asset-main">${img}<div><div class="asset-symbol">${esc(a.symbol)}${a.isMeme?'<span class="meme-badge">MEME</span>':''}${state.validatedMap.get(`${a.type}:${a.id}`)?.valid?'<span class="validated-badge">VALID BUY</span>':''}</div><div class="asset-name">${esc(a.name||a.symbol)}</div></div></div><div class="asset-price"><strong>${fmt(c.price,c.currency||'USD')}</strong><span class="change ${chg>=0?'positive':'negative'}">${pct(chg)}</span></div>${signalSpan(s)}</article>`}
-function renderMarket(){const normal=state.crypto.filter(x=>!x.isMeme),memes=state.crypto.filter(x=>x.isMeme);let rows=[];if(state.filter==='all'){rows=[...state.macro.filter(x=>x.type==='gold'),...state.macro.filter(x=>x.type==='stock').slice(0,6),...normal.slice(0,18),...memes.slice(0,10)]}else if(state.filter==='crypto')rows=normal;else if(state.filter==='meme')rows=memes;else rows=state.macro.filter(x=>x.type===state.filter);$('#assetList').innerHTML=rows.length?rows.map(assetRow).join(''):`<div class="empty-state"><b>Tidak ada data.</b><span>Coba kategori lain.</span></div>`;$$('#assetList [data-open-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.openType,x.dataset.openId));renderTopSignal()}
-function renderTopSignal(){const all=[...state.macro,...state.crypto].filter(x=>x.signal);const rank={BUY:4,HOLD:3,'WAIT & SEE':2,SELL:1};all.sort((a,b)=>(rank[b.signal.label]||0)-(rank[a.signal.label]||0)+(Number(b.signal.confidence||0)-Number(a.signal.confidence||0))/100);const a=all[0];$('#topSignal').textContent=a?short(a.signal):'—';$('#topSignalName').textContent=a?`${a.symbol} • ${a.signal.confidence||'—'}%`:'loading'}
+function signalSpan(s){return`<span class="signal ${esc(s?.tone||'wait')} ${s?.label==='CHECKING'?'checking':''}">${esc(short(s))}</span>`}
+function decisionKey(a){return`${a.type}:${a.id}`}
+function cachedDecision(a,maxAge=5*60*1000){
+  const x=state.decisionCache.get(decisionKey(a));
+  return x&&Date.now()-x.ts<maxAge?x:null;
+}
+function displayDecision(a){
+  const x=cachedDecision(a);
+  return x?.result?.final||{label:'CHECKING',tone:'wait',confidence:null};
+}
+function setupScore(result){
+  if(!result)return-999;
+  const f=result.final||{},v=result.validation||{},t=result.timing||{},q=result.quality||{},rr=Number(f.rewardRisk||0);
+  const base={BUY:42,HOLD:22,'WAIT & SEE':7,SELL:-18}[f.label]??0;
+  return base+Number(f.confidence||0)*.20+Number(v.score||0)*.22+Number(t.score||0)*.13+Number(q.score||0)*.10+Math.min(10,Math.max(0,rr-1)*5);
+}
+function assetRow(a){
+  const c=a.type==='crypto'?cryptoLive(a):a,s=displayDecision(a),chg=Number(c.change24h??c.percentChange),
+    img=a.type==='crypto'&&a.image?`<img class="coin-img" src="${esc(a.image)}" alt="">`:`<div class="asset-icon">${a.type==='gold'?'AU':'ST'}</div>`,
+    sync=cachedDecision(a)?'<span class="asset-sync synced">SYNCED</span>':'<span class="asset-sync pending">PENDING</span>',
+    valid=state.validatedMap.get(decisionKey(a))?.valid;
+  return`<article class="asset-row" data-open-type="${esc(a.type)}" data-open-id="${esc(a.id)}"><div class="asset-main">${img}<div><div class="asset-symbol">${esc(a.symbol)}${a.isMeme?'<span class="meme-badge">MEME</span>':''}${valid?'<span class="validated-badge">VALID BUY</span>':''}${sync}</div><div class="asset-name">${esc(a.name||a.symbol)}</div></div></div><div class="asset-price"><strong>${fmt(c.price,c.currency||'USD')}</strong><span class="change ${chg>=0?'positive':'negative'}">${pct(chg)}</span></div>${signalSpan(s)}</article>`
+}
+function marketRowsByType(){
+  const normal=state.crypto.filter(x=>!x.isMeme),memes=state.crypto.filter(x=>x.isMeme);
+  if(state.filter==='all')return[...state.macro.filter(x=>x.type==='gold'),...state.macro.filter(x=>x.type==='stock'),...normal.slice(0,24),...memes.slice(0,14)];
+  if(state.filter==='crypto')return normal;
+  if(state.filter==='meme')return memes;
+  return state.macro.filter(x=>x.type===state.filter);
+}
+function renderMarket(){
+  let rows=marketRowsByType();
+  if(state.decisionFilter!=='all'){
+    rows=rows.filter(a=>{
+      const x=cachedDecision(a),f=x?.result?.final,v=x?.result?.validation;
+      if(state.decisionFilter==='VALIDATED')return Boolean(v?.valid);
+      return f?.label===state.decisionFilter;
+    });
+  }
+  rows.sort((a,b)=>{
+    const A=cachedDecision(a)?.result,B=cachedDecision(b)?.result;
+    if(state.sortMode==='confidence')return Number(B?.final?.confidence||-1)-Number(A?.final?.confidence||-1);
+    if(state.sortMode==='change'){const ac=Number((a.type==='crypto'?cryptoLive(a):a).change24h??a.percentChange)||-999,bc=Number((b.type==='crypto'?cryptoLive(b):b).change24h??b.percentChange)||-999;return bc-ac}
+    return setupScore(B)-setupScore(A);
+  });
+  const synced=marketRowsByType().filter(a=>cachedDecision(a)).length,total=marketRowsByType().length;
+  if($('#syncCoverage'))$('#syncCoverage').textContent=`${synced}/${total} instrumen tersinkron`;
+  $('#assetList').innerHTML=rows.length?rows.map(assetRow).join(''):`<div class="empty-state"><b>Tidak ada instrumen pada filter ini.</b><span>${state.decisionFilter==='all'?'Coba kategori lain.':'Filter keputusan hanya menampilkan instrumen yang sudah dianalisis oleh Unified Decision Engine.'}</span></div>`;
+  $$('#assetList [data-open-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.openType,x.dataset.openId));
+  renderTopSignal();
+}
+function renderTopSignal(){
+  const all=[...state.decisionCache.values()].filter(x=>x?.result?.final).sort((a,b)=>setupScore(b.result)-setupScore(a.result));
+  const x=all[0],a=x?.result?.a,f=x?.result?.final;
+  $('#topSignal').textContent=f?short(f):'—';
+  $('#topSignalName').textContent=a&&f?`${a.symbol} • ${f.confidence}%`:'syncing…';
+}
 async function loadHealth(){
   try{
     state.health=await api('/api/health');
@@ -182,14 +237,91 @@ async function loadAgentFeed(){
   }catch{}
 }
 
+
+function dailyUniverse(){
+  const normal=state.crypto.filter(x=>!x.isMeme).sort((a,b)=>(b.marketScore||0)-(a.marketScore||0)).slice(0,7),
+    memes=state.crypto.filter(x=>x.isMeme&&x.riskPenalty<20).sort((a,b)=>(b.marketScore||0)-(a.marketScore||0)).slice(0,2),
+    macro=state.macro.filter(x=>['NVDA','AAPL','MSFT','XAU/USD'].includes(x.symbol));
+  return[...normal,...memes,...macro].slice(0,12);
+}
+function dailyTier(r){
+  if(r.final.label==='BUY'&&r.timing.score>=70&&r.quality.score>=78)return{label:'READY BUY',cls:'setup-ready'};
+  if(['BUY','HOLD'].includes(r.final.label))return{label:'WATCH',cls:'setup-watch'};
+  if(r.final.label==='SELL')return{label:'AVOID / SELL',cls:'setup-avoid'};
+  return{label:'WAIT',cls:'setup-watch'};
+}
+function renderDailyBoard(){
+  const rows=[...state.decisionCache.values()].map(x=>x.result).filter(Boolean).sort((a,b)=>setupScore(b)-setupScore(a));
+  const top=rows.slice(0,3),buys=rows.filter(x=>x.final.label==='BUY');
+  if($('#dailyBoardTitle'))$('#dailyBoardTitle').textContent=buys.length?`${buys.length} BUY setup terdeteksi`:'Belum ada BUY berkualitas — tampilkan kandidat terbaik';
+  if($('#dailyBoardText'))$('#dailyBoardText').textContent=buys.length?'Urutan berdasarkan unified score, timing, validation, quality, dan risk/reward.':'Sistem tidak memaksa BUY. Kandidat di bawah adalah yang terbaik untuk dipantau saat ini.';
+  if($('#dailyScanStatus'))$('#dailyScanStatus').textContent=state.dailyScanBusy?'Scanning…':state.dailyScanAt?`Update ${new Date(state.dailyScanAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}`:'Belum dipindai';
+  if($('#dailyOpportunityList'))$('#dailyOpportunityList').innerHTML=top.length?top.map((r,i)=>{
+    const tier=dailyTier(r),rr=r.final.rewardRisk;
+    return`<article class="daily-opportunity ${tier.cls}" data-daily-type="${esc(r.a.type)}" data-daily-id="${esc(r.a.id)}"><div class="daily-rank">${i+1}</div><div class="daily-main"><b>${esc(r.a.symbol)} • ${esc(tier.label)}</b><span>${esc(r.final.reason)}</span></div><div class="daily-score"><strong>${r.final.confidence}%</strong><span>score ${setupScore(r).toFixed(0)}${rr!=null?` • R:R ${rr.toFixed(2)}`:''}</span></div></article>`
+  }).join(''):`<div class="daily-placeholder">Belum ada hasil Unified Decision. Scan otomatis akan dimulai setelah market data tersedia.</div>`;
+  $$('[data-daily-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.dailyType,x.dataset.dailyId));
+}
+async function runDailyUnifiedScan(manual=false){
+  if(state.dailyScanBusy)return;
+  const pool=dailyUniverse();if(!pool.length)return;
+  state.dailyScanBusy=true;renderDailyBoard();
+  try{
+    // Tahap 1: MTF pre-filter supaya request deep tetap terkendali.
+    const pre=[];
+    for(const a of pool){
+      try{
+        const mtf=await api(`/api/multi-analyze?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}`);
+        const score=({BUY:4,HOLD:3,'WAIT & SEE':2,SELL:1}[mtf.summary?.label]||0)*100+Number(mtf.summary?.confidence||0)+(a.marketScore||0)*.15-(a.riskPenalty||0);
+        pre.push({a,mtf,score})
+      }catch{}
+      await sleep(90)
+    }
+    pre.sort((a,b)=>b.score-a.score);
+    // Deep analyse kandidat terbaik + satu bearish kandidat agar filter SELL tetap berguna.
+    const chosen=pre.slice(0,6);
+    const bearish=pre.filter(x=>x.mtf?.summary?.label==='SELL').slice(0,1);
+    for(const x of [...chosen,...bearish]){
+      if(cachedDecision(x.a,2*60*1000))continue;
+      try{await deepValidateCandidate(x.a,x.mtf)}catch{}
+      renderMarket();renderDailyBoard();await sleep(130)
+    }
+    state.dailyScanAt=Date.now();
+    store.set('inv_daily_scan_v81',{date:new Date().toISOString().slice(0,10),ts:state.dailyScanAt});
+    renderMarket();renderDailyBoard();
+    if(manual)showToast('Unified scan selesai','Best Available Today sudah diperbarui. BUY tidak akan dipaksakan jika quality gate belum lolos.');
+  }finally{state.dailyScanBusy=false;renderDailyBoard()}
+}
+$('#dailyRefreshBtn').onclick=()=>runDailyUnifiedScan(true);
+
+
 // search
 async function search(){const q=$('#globalSearch').value.trim();if(!q){$('#searchResults').classList.add('hidden');return}const l=q.toLowerCase(),local=state.crypto.filter(x=>x.symbol.toLowerCase().includes(l)||x.name.toLowerCase().includes(l)).slice(0,5);let remote=[];try{remote=(await api(`/api/search?q=${encodeURIComponent(q)}`)).data.slice(0,7)}catch{}const rows=[...local.map(x=>({type:'crypto',id:x.id,symbol:x.symbol,name:x.name,meta:x.isMeme?'Meme coin':'Crypto'})),...remote.map(x=>({type:(x.symbol==='XAU/USD'||String(x.instrumentType).toLowerCase().includes('commodity'))?'gold':'stock',id:x.symbol,symbol:x.symbol,name:x.instrumentName,meta:[x.exchange,x.instrumentType].filter(Boolean).join(' • ')}))];$('#searchResults').innerHTML=rows.length?rows.map(x=>`<div class="search-result" data-rtype="${esc(x.type)}" data-rid="${esc(x.id)}"><div><b>${esc(x.symbol)}</b><small>${esc(x.name)}</small></div><span>${esc(x.meta)}</span></div>`).join(''):`<div class="empty-state"><b>Tidak ditemukan.</b></div>`;$('#searchResults').classList.remove('hidden');$$('[data-rtype]').forEach(x=>x.onclick=async()=>{if(x.dataset.rtype!=='crypto'&&!state.macro.find(a=>a.id===x.dataset.rid))await loadMacro(x.dataset.rid);$('#searchResults').classList.add('hidden');openAsset(x.dataset.rtype,x.dataset.rid)})}
 $('#searchBtn').onclick=search;$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 
 // scanner
-function candidatePool(){const normal=state.crypto.filter(x=>!x.isMeme).sort((a,b)=>(b.marketScore||0)-(a.marketScore||0)).slice(0,5),memes=state.crypto.filter(x=>x.isMeme&&x.riskPenalty<22).sort((a,b)=>(b.marketScore||0)-(a.marketScore||0)).slice(0,2),macro=state.macro.filter(x=>['NVDA','AAPL','XAU/USD'].includes(x.symbol));return[...normal,...memes,...macro].slice(0,9)}
-async function runScanner(){$('#scanBtn').disabled=true;$('#scanProgress').classList.remove('hidden');state.scanResults=[];const pool=candidatePool();for(let i=0;i<pool.length;i++){const a=pool[i];$('#scanBar').style.width=`${Math.round((i/pool.length)*100)}%`;$('#scanText').textContent=`Menganalisis ${a.symbol} (${i+1}/${pool.length})`;try{const d=await api(`/api/multi-analyze?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}`);const rank=({BUY:400,HOLD:250,'WAIT & SEE':120,SELL:0}[d.summary.label]||0)+(d.summary.confidence||0)-(a.isMeme?(a.riskPenalty||0)*1.2:0);state.scanResults.push({asset:a,summary:d.summary,rank})}catch{}await sleep(180)}state.scanResults.sort((a,b)=>b.rank-a.rank);$('#scanBar').style.width='100%';$('#scanText').textContent='Scan selesai';renderScanner();$('#scanBtn').disabled=false;setTimeout(()=>$('#scanProgress').classList.add('hidden'),1000)}
-function renderScanner(){$('#scannerResults').innerHTML=state.scanResults.length?state.scanResults.map((x,i)=>`<article class="opportunity-card" data-scan-type="${esc(x.asset.type)}" data-scan-id="${esc(x.asset.id)}"><div class="rank">${i+1}</div><div><h4>${esc(x.asset.symbol)} ${x.asset.isMeme?'<span class="meme-badge">MEME</span>':''}</h4><p>${esc(x.summary.reason)}</p></div><div class="opportunity-meta"><strong>${esc(short(x.summary))}</strong><span>${x.summary.confidence}% confidence</span></div></article>`).join(''):`<div class="empty-state"><b>Belum ada deep scan.</b><span>Tekan “Mulai Deep Scan”.</span></div>`;$$('[data-scan-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.scanType,x.dataset.scanId))}
+function candidatePool(){
+  const normal=state.crypto.filter(x=>!x.isMeme).sort((a,b)=>(b.marketScore||0)-(a.marketScore||0)).slice(0,8),
+    memes=state.crypto.filter(x=>x.isMeme&&x.riskPenalty<22).sort((a,b)=>(b.marketScore||0)-(a.marketScore||0)).slice(0,3),
+    macro=state.macro.filter(x=>['NVDA','AAPL','MSFT','META','TSLA','XAU/USD'].includes(x.symbol));
+  return[...normal,...memes,...macro].slice(0,14)
+}
+async function runScanner(){
+  $('#scanBtn').disabled=true;$('#scanProgress').classList.remove('hidden');state.scanResults=[];const pool=candidatePool();
+  for(let i=0;i<pool.length;i++){
+    const a=pool[i];$('#scanBar').style.width=`${Math.round((i/pool.length)*100)}%`;$('#scanText').textContent=`Unified analysis ${a.symbol} (${i+1}/${pool.length})`;
+    try{const r=await deepValidateCandidate(a);state.scanResults.push({asset:a,result:r,rank:setupScore(r)})}catch{}
+    renderMarket();await sleep(150)
+  }
+  state.scanResults.sort((a,b)=>b.rank-a.rank);$('#scanBar').style.width='100%';$('#scanText').textContent='Unified scan selesai';renderScanner();renderDailyBoard();$('#scanBtn').disabled=false;setTimeout(()=>$('#scanProgress').classList.add('hidden'),1000)
+}
+function renderScanner(){
+  $('#scannerResults').innerHTML=state.scanResults.length?state.scanResults.map((x,i)=>{
+    const f=x.result.final,v=x.result.validation,t=x.result.timing,q=x.result.quality;
+    return`<article class="opportunity-card" data-scan-type="${esc(x.asset.type)}" data-scan-id="${esc(x.asset.id)}"><div class="rank">${i+1}</div><div><h4>${esc(x.asset.symbol)} ${x.asset.isMeme?'<span class="meme-badge">MEME</span>':''}</h4><p>${esc(f.reason)}</p></div><div class="opportunity-meta"><strong>${esc(short(f))}</strong><span>${f.confidence}% • timing ${t.score} • quality ${q.score} • valid ${v.score}</span></div></article>`
+  }).join(''):`<div class="empty-state"><b>Belum ada unified scan.</b><span>Tekan “Mulai Deep Scan”.</span></div>`;
+  $$('[data-scan-type]').forEach(x=>x.onclick=()=>openAsset(x.dataset.scanType,x.dataset.scanId))
+}
 $('#scanBtn').onclick=runScanner;
 
 // detail
@@ -198,21 +330,16 @@ async function openAsset(type,id){let a=type==='crypto'?state.crypto.find(x=>x.i
 async function loadDetail(){
   const a=state.selected;if(!a)return;
   try{
-    const baseUrl=a.type==='crypto'?`/api/crypto-analyze?symbol=${encodeURIComponent(a.symbol)}&tf=${state.timeframe}`:`/api/analyze?symbol=${encodeURIComponent(a.symbol)}&tf=${state.timeframe}`;
-    const cached=state.mtfCache.get(`${a.type}:${a.symbol}`),
-      mtfP=cached&&Date.now()-cached.ts<60000?Promise.resolve(cached.data):api(`/api/multi-analyze?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}`).then(d=>(state.mtfCache.set(`${a.type}:${a.symbol}`,{ts:Date.now(),data:d}),d));
-    const tasks=[
-      api(baseUrl),mtfP,
-      a.type==='crypto'?api(`/api/orderflow?symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null),
-      api(`/api/backtest?type=${a.type==='crypto'?'crypto':'market'}&symbol=${encodeURIComponent(a.symbol)}&tf=${['15m','1h','4h','1d'].includes(state.timeframe)?state.timeframe:'4h'}`).catch(()=>null),
-      api(`/api/context?type=${encodeURIComponent(a.type)}&symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null),
-      a.type==='crypto'?api(`/api/derivatives?symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null),
-      a.type==='crypto'?api(`/api/onchain?id=${encodeURIComponent(a.id)}&symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null),
-      a.type==='stock'?api(`/api/events?type=stock&symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null)
-    ];
-    const [d,mtf,order,back,ctx,deriv,onchain,events]=await Promise.all(tasks);
-    state.analysis={d,mtf,order,back,ctx,deriv,onchain,events};
-    renderDetail(a,d,mtf,order,back,ctx,deriv,onchain,events);
+    const cached=cachedDecision(a,4*60*1000);
+    const result=cached?.result||await deepValidateCandidate(a);
+    let viewD=result.d;
+    if(state.timeframe!=='4h'){
+      const viewUrl=a.type==='crypto'?`/api/crypto-analyze?symbol=${encodeURIComponent(a.symbol)}&tf=${state.timeframe}`:`/api/analyze?symbol=${encodeURIComponent(a.symbol)}&tf=${state.timeframe}`;
+      viewD=await api(viewUrl);
+    }
+    state.analysis={...result,viewD};
+    renderDetail(a,result,viewD);
+    renderMarket();renderDailyBoard();
   }catch(e){$('#detailContent').innerHTML=`<div class="error-box">${esc(e.message)}</div>`}
 }
 function mtfCell(f){if(!f?.ok)return'<div class="mtf-mini na">N/A</div>';return`<div class="mtf-mini ${esc(f.signal.tone)}">${esc(short(f.signal))}<small>${f.signal.confidence}%</small></div>`}
@@ -271,6 +398,37 @@ function finalDecision(a,d,mtf,order,back,ctx,deriv,onchain,events){
   conf=Math.max(50,Math.min(91,Math.round(conf)));if(label==='WAIT & SEE')conf=Math.min(conf,72);
   return{label,tone,confidence:conf,score:Number(v.toFixed(2)),reason:reasons.slice(0,4).join(' • ')||mtf?.summary?.reason||d.signal.reason,contributions:contrib};
 }
+function rewardRisk(d,label='BUY'){
+  const p=Number(d?.quote?.price??d?.technical?.latest),L=d?.levels||{};
+  if(!Number.isFinite(p))return null;
+  if(label==='SELL'){
+    const risk=Math.abs(Number(L.invalidation)-p),reward=Math.abs(p-Number(L.target1));
+    return risk>0&&Number.isFinite(reward)?reward/risk:null;
+  }
+  const risk=Math.abs(p-Number(L.invalidation)),reward=Math.abs(Number(L.target1)-p);
+  return risk>0&&Number.isFinite(reward)?reward/risk:null;
+}
+function resolveUnifiedDecision(a,d,mtf,order,back,ctx,deriv,onchain,events,quality=null,timing=null){
+  const base=finalDecision(a,d,mtf,order,back,ctx,deriv,onchain,events);
+  quality=quality||dataQuality(a,d,mtf,order,ctx,deriv,onchain);
+  timing=timing||timingQuality(a,d,order,deriv);
+  const rr=rewardRisk(d,base.label),blockers=[];
+  let label=base.label,tone=base.tone,confidence=base.confidence;
+
+  if(quality.score<60){label='WAIT & SEE';tone='wait';confidence=Math.min(confidence,64);blockers.push('Data quality terlalu rendah')}
+  if(label==='BUY'){
+    if(mtf?.summary?.label!=='BUY'){label='HOLD';tone='hold';blockers.push('MTF belum BUY')}
+    if(timing.label==='TOO LATE / CHASING'||timing.score<55){label='HOLD';tone='hold';blockers.push('Timing entry buruk')}
+    if(rr!=null&&rr<1.5){label='HOLD';tone='hold';blockers.push(`Risk/reward hanya ${rr.toFixed(2)}x`)}
+    if(ctx?.eventRisk?.level==='HIGH'||events?.level==='HIGH'){label='WAIT & SEE';tone='wait';confidence=Math.min(confidence,68);blockers.push('Event risk tinggi')}
+    if(back?.sampleSize>=8&&(Number(back.expectancyPct)<=0||Number(back.hitRate)<48)){label='HOLD';tone='hold';confidence=Math.min(confidence,72);blockers.push('Historical validation belum mendukung')}
+    if(a.isMeme&&Number(a.riskPenalty||0)>=22){label='WAIT & SEE';tone='wait';confidence=Math.min(confidence,68);blockers.push('Meme risk terlalu tinggi')}
+  }
+  if(label==='SELL'&&quality.score<70){label='WAIT & SEE';tone='wait';blockers.push('SELL diblok karena data quality terbatas')}
+  const reason=blockers.length?`${base.reason} • Guard: ${blockers.slice(0,2).join(' • ')}`:base.reason;
+  return{...base,baseLabel:base.label,label,tone,confidence,rewardRisk:rr==null?null:Number(rr.toFixed(2)),blockers,reason};
+}
+
 function dataQuality(a,d,mtf,order,ctx,deriv,onchain){
   let score=100,notes=[];
   const frames=(mtf?.frames||[]).filter(x=>x?.ok).length;
@@ -324,13 +482,10 @@ function explainRows(final){
   const base=[{name:'Multi-Timeframe Core',value:final.score}];
   return [...(final.contributions||[])].sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).slice(0,8);
 }
-function renderDetail(a,d,mtf,order,back,ctx,deriv,onchain,events){
-  const cur=a.type==='crypto'?cryptoLive(a):a,
-    final=finalDecision(a,d,mtf,order,back,ctx,deriv,onchain,events),
-    timing=timingQuality(a,d,order,deriv),
-    quality=dataQuality(a,d,mtf,order,ctx,deriv,onchain),
-    validation=validation100(a,d,mtf,order,back,ctx,final,timing,deriv,onchain,events,quality),
-    I=d.indicators||{},L=d.levels||{},frames=Object.fromEntries((mtf?.frames||[]).map(x=>[x.timeframe,x])),
+function renderDetail(a,result,viewD){
+  const {d,mtf,order,back,ctx,deriv,onchain,events,final,timing,quality,validation}=result,
+    cur=a.type==='crypto'?cryptoLive(a):a,
+    I=viewD?.indicators||d.indicators||{},L=d.levels||{},frames=Object.fromEntries((mtf?.frames||[]).map(x=>[x.timeframe,x])),
     watched=isWatched(a),chg=Number(cur.change24h??cur.percentChange),C=d.currency||cur.currency||'USD',
     sizing=recommendedPosition(a,d,timing,quality);
 
@@ -341,7 +496,9 @@ function renderDetail(a,d,mtf,order,back,ctx,deriv,onchain,events){
   $('#detailContent').innerHTML=`
 <div class="detail-head"><div class="detail-type">${a.isMeme?'MEME COIN • ':''}${esc(a.type.toUpperCase())} • ${esc(a.symbol)}<span class="live-badge">MARKET DATA</span></div><h2>${esc(a.name)}</h2><div class="detail-price-row"><div id="liveDetailPrice" class="detail-price">${fmt(cur.price,C)}</div><div class="detail-change ${chg>=0?'positive':'negative'}">${pct(chg)}</div></div></div>
 
-<div class="final-card ${esc(final.tone)}"><div class="final-top"><div><span class="decision-kicker">FINAL DECISION</span><div class="decision-title">${esc(final.label)}</div></div><div class="confidence"><strong>${final.confidence}%</strong><span>evidence confidence*</span></div></div><div class="decision-reason">${esc(final.reason)}</div><div class="timing-bar"><span>TIMING QUALITY</span><b class="${esc(timing.tone)}">${esc(timing.label)} • ${timing.score}/100</b></div></div>
+<div class="final-card ${esc(final.tone)}"><div class="final-top"><div><span class="decision-kicker">UNIFIED FINAL DECISION</span><div class="decision-title">${esc(final.label)}</div></div><div class="confidence"><strong>${final.confidence}%</strong><span>evidence confidence*</span></div></div><div class="decision-reason">${esc(final.reason)}</div><div class="timing-bar"><span>TIMING QUALITY</span><b class="${esc(timing.tone)}">${esc(timing.label)} • ${timing.score}/100</b></div></div>
+<div class="decision-anchor-note">Keputusan utama dikunci ke <b>4H Core + MTF 15M/1H/4H/1D</b>. Tombol timeframe di bawah hanya mengubah chart dan snapshot indikator, sehingga keputusan beranda dan detail tetap sinkron.${final.rewardRisk!=null?` • R:R ${final.rewardRisk.toFixed(2)}x`:''}</div>
+${final.blockers?.length?`<div class="blocker-list">${final.blockers.map(x=>`<div class="blocker">Guard: ${esc(x)}</div>`).join('')}</div>`:''}
 
 <div class="data-quality"><div><strong>DATA QUALITY • ${esc(quality.label)}</strong><span>${esc(quality.reason)}</span></div><b>${quality.score}/100</b></div>
 
@@ -380,8 +537,8 @@ ${ctx?.news?.length?`<div class="section-card"><h4>Latest Context</h4><div class
 <p class="disclaimer">*Confidence bukan probabilitas pasti profit. Semua analisis adalah decision-support. Validated Buy 100/100 berarti seluruh gate model lolos, bukan jaminan keuntungan.</p>`;
 
   $$('[data-tf]').forEach(b=>b.onclick=()=>{state.timeframe=b.dataset.tf;store.set('inv_tf_v7',state.timeframe);loadDetail()});
-  requestAnimationFrame(()=>drawCandles($('#detailChart'),d.history||[],L));
-  $('#watchBtn').onclick=()=>{watched?removeWatch(a):addWatch({id:a.id,type:a.type,symbol:a.symbol,name:a.name,isMeme:a.isMeme});renderDetail(a,d,mtf,order,back,ctx,deriv,onchain,events)};
+  requestAnimationFrame(()=>drawCandles($('#detailChart'),viewD?.history||d.history||[],L));
+  $('#watchBtn').onclick=()=>{watched?removeWatch(a):addWatch({id:a.id,type:a.type,symbol:a.symbol,name:a.name,isMeme:a.isMeme});renderDetail(a,result,viewD)};
   $('#detailPortfolioBtn').onclick=()=>openPositionModal(a,Number(d.quote?.price||d.technical?.latest));
   $('#paperTradeBtn').onclick=()=>openPaperTrade(a,d,final);
 }
@@ -398,9 +555,13 @@ async function deepValidateCandidate(a,mtfInput=null){
     a.type==='crypto'?api(`/api/onchain?id=${encodeURIComponent(a.id)}&symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null),
     a.type==='stock'?api(`/api/events?type=stock&symbol=${encodeURIComponent(a.symbol)}`).catch(()=>null):Promise.resolve(null)
   ]);
-  const final=finalDecision(a,d,mtf,order,back,ctx,deriv,onchain,events),timing=timingQuality(a,d,order,deriv),quality=dataQuality(a,d,mtf,order,ctx,deriv,onchain),
-    validation=validation100(a,d,mtf,order,back,ctx,final,timing,deriv,onchain,events,quality);
-  return{a,d,mtf,order,back,ctx,deriv,onchain,events,final,timing,quality,validation};
+  const timing=timingQuality(a,d,order,deriv),quality=dataQuality(a,d,mtf,order,ctx,deriv,onchain),
+    final=resolveUnifiedDecision(a,d,mtf,order,back,ctx,deriv,onchain,events,quality,timing),
+    validation=validation100(a,d,mtf,order,back,ctx,final,timing,deriv,onchain,events,quality),
+    result={a,d,mtf,order,back,ctx,deriv,onchain,events,final,timing,quality,validation};
+  state.decisionCache.set(decisionKey(a),{ts:Date.now(),result});
+  state.validatedMap.set(decisionKey(a),validation);
+  return result;
 }
 async function runValidatedMonitor(manual=false){
   if(state.alertBusy)return;state.alertBusy=true;
@@ -538,4 +699,7 @@ $('#installBtn').onclick=async()=>{
 
 
 updateAlertUI();
-Promise.allSettled([loadHealth(),loadRegime(),loadCrypto(),loadMacro(),loadMacroIntel(),loadAgentFeed()]).then(()=>{renderMarket();renderPortfolio();renderLab();startValidatedMonitor(alertPrefs().enabled)});
+Promise.allSettled([loadHealth(),loadRegime(),loadCrypto(),loadMacro(),loadMacroIntel(),loadAgentFeed()]).then(()=>{
+  renderMarket();renderPortfolio();renderLab();renderDailyBoard();startValidatedMonitor(alertPrefs().enabled);
+  setTimeout(()=>runDailyUnifiedScan(false),900);
+});

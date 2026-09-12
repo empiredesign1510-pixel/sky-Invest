@@ -1,106 +1,77 @@
-# Investment AI OS v8 — Power Core
+# Investment AI OS v8.1 — Unified Decision
 
-V8 adalah upgrade besar dari V7.3 dan tetap memakai arsitektur Vercel Stable (tanpa backend WebSocket custom).
+Upgrade utama V8.1 adalah sinkronisasi keputusan.
 
-## Fitur utama
+## Masalah yang diperbaiki
+Versi sebelumnya memakai quick signal di beranda tetapi full decision engine di detail.
+Akibatnya sebuah aset dapat terlihat BUY di market list tetapi berubah WAIT & SEE ketika dibuka.
 
-### Decision Intelligence
-- Multi-Timeframe 15M + 1H + 4H + 1D
+V8.1 tidak lagi menampilkan quick signal sebagai keputusan utama.
+BUY/HOLD/WAIT/SELL di market list berasal dari Unified Decision Engine yang sama dengan detail.
+
+## Decision Anchor
+Final Decision dikunci ke:
+- 4H Core
+- Multi-timeframe 15M + 1H + 4H + 1D
+- Order Flow
+- Derivatives
+- Historical Validation
+- Event / News Risk
+- Network Context
 - Market Regime
+- Macro/Fundamental sesuai kelas aset
+- Data Quality
 - Timing Quality
-- Strict Validated Buy
-- Historical validation
-- Explainable AI contribution
-- Data Quality Gate
-- Asset-specific model:
-  - Major crypto / altcoin
-  - Meme coin
-  - Stocks
-  - XAU/USD
+- Risk/Reward guard
 
-### Crypto Power Layer
-- Binance public live price
-- Binance order book + aggTrades
-- Cumulative delta proxy
-- Bid/ask wall ratio
-- Futures funding
-- Open interest + OI change
-- Global long/short ratio
-- CoinGecko supply / FDV / developer context
-- BTC mempool context
-- Meme risk filter
+Mengubah tombol timeframe di detail hanya mengubah chart + indicator snapshot.
+Final Decision tetap menggunakan anchor yang sama agar tidak berubah hanya karena user mengganti tampilan chart.
 
-### Stocks / Gold
-- Twelve Data quote + OHLC
-- Alpha Vantage fundamentals
-- News/event risk
-- Earnings calendar guard
-- Macro context:
-  - US 10Y Treasury yield
-  - Fed Funds
-  - CPI
+## Filter baru
+Market memiliki dua filter:
+1. Instrumen: Semua / Crypto / Meme / Saham / Gold
+2. Keputusan: Semua / BUY / HOLD / WAIT / SELL / VALIDATED
 
-### Portfolio Intelligence
-- Manual positions
-- Live mark-to-market
-- Unrealized P/L
-- Adaptive position sizing
-- 90-day return correlation
-- Exposure-aware workflow
+Filter keputusan hanya menampilkan instrumen yang sudah selesai dianalisis oleh Unified Decision Engine.
 
-### Calibration + Paper Trading
-- Signal memory
-- Signal outcome check after >=4 hours
-- Local hit rate
-- Bounded calibration modifier
-- Paper BUY/SELL
-- TP/STOP monitoring
-- Paper performance
+## Best Available Today
+Aplikasi melakukan scan bertahap:
+1. Pre-filter multi-timeframe
+2. Deep analysis kandidat terbaik
+3. Ranking berdasarkan:
+   - final decision
+   - confidence
+   - validation score
+   - timing score
+   - data quality
+   - risk/reward
 
-### Server Agent
-`/api/agent-run` dapat dipanggil scheduler secara periodik.
-Jika Upstash dikonfigurasi, hasil terbaru disimpan dan dibaca melalui `/api/agent-feed`.
+Aplikasi selalu menampilkan kandidat terbaik yang tersedia.
+Namun sistem tidak memaksa adanya BUY setiap hari. Jika tidak ada setup yang memenuhi quality gate,
+judul akan menyatakan bahwa belum ada BUY berkualitas dan menampilkan kandidat WATCH terbaik.
 
-Penting: `vercel.json` utama sengaja TIDAK memaksa cron agar deployment tetap kompatibel dengan plan Vercel yang berbeda.
-Contoh cron tersedia di `vercel-cron.example.json`.
-Jika plan Anda mendukung cron hourly, gabungkan bagian `crons` ke `vercel.json`.
+Ini sengaja dilakukan untuk mengurangi false-positive.
 
-### Download App / PWA
-Website sudah installable sebagai PWA.
-- Tombol **Download App** tersedia di header.
-- Android Chrome: akan memunculkan native install prompt jika browser mengizinkan.
-- iOS Safari: Share -> Add to Home Screen.
-- Core UI dicache oleh service worker.
-- Icon 192px dan 512px disertakan.
+## BUY guard
+BUY dapat diturunkan menjadi HOLD/WAIT bila:
+- MTF bukan BUY
+- timing chasing
+- risk/reward < 1.5x
+- event risk HIGH
+- historical expectancy negatif
+- data quality rendah
+- meme risk terlalu tinggi
 
-## Environment Variables
+## Deployment
+Environment Variables tetap:
+- TWELVEDATA_API_KEY
+- COINGECKO_API_KEY
+- ALPHAVANTAGE_API_KEY
 
-Minimal:
-`TWELVEDATA_API_KEY`
+Optional:
+- UPSTASH_REDIS_REST_URL
+- UPSTASH_REDIS_REST_TOKEN
+- AGENT_SECRET
 
-Recommended:
-`COINGECKO_API_KEY`
-`ALPHAVANTAGE_API_KEY`
-
-Optional 24/7 server-agent persistence:
-`UPSTASH_REDIS_REST_URL`
-`UPSTASH_REDIS_REST_TOKEN`
-`CRON_SECRET`
-
-Tidak perlu:
-`BINANCE_API_KEY`
-`BINANCE_SECRET`
-
-## Deploy
-1. Replace seluruh file versi lama dengan isi folder V8.
-2. Pastikan `api/stream.js` TIDAK ada.
-3. Vercel Framework Preset: Other.
-4. Build Command / Output Directory: default/kosong.
-5. Tambahkan env variables.
-6. Redeploy.
-
-## Catatan penting
-- `100/100 Validated Buy` berarti seluruh gate model lolos, bukan jaminan profit 100%.
-- Calibration local baru bermakna setelah jumlah sampel cukup.
-- On-chain layer generic adalah network/supply context; BTC mendapat tambahan mempool context.
-- Server agent 24/7 membutuhkan scheduler eksternal/Vercel Cron dan, untuk persistence lintas instance, Upstash.
+Tidak memerlukan BINANCE_API_KEY atau BINANCE_SECRET.
+Tetap memakai Vercel Stable architecture tanpa api/stream.js.
